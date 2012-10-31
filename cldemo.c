@@ -28,7 +28,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define NUM_DATA 100
+#define NUM_DATA 10
 
 #define CL_CHECK(_expr)                                                         \
    do {                                                                         \
@@ -119,22 +119,13 @@ int main(int argc, char **argv)
   fseek(f, 0, SEEK_END);
   long pos = ftell(f);
   fseek(f, 0, SEEK_SET);
-
   char *program_source = malloc(pos);
   fread(program_source, pos, 1, f);
   fclose(f);
-
-
-	/* const char *program_source[] = { */
-    /* "__kernel void simple_demo(__global int *src, __global int *dst, int factor)\n", */
-    /* "{\n", */
-    /* "	int i = get_global_id(0);\n", */
-    /* "	dst[i] = src[i] * factor;\n", */
-    /* "}\n" */
-	/* }; */
-
+  printf("%s \n", program_source);
 	cl_program program;
-	program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
+
+  program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
 	if (clBuildProgram(program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
 		char buffer[10240];
 		clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
@@ -147,15 +138,20 @@ int main(int argc, char **argv)
 	input_buffer = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*NUM_DATA, NULL, &_err));
 
 	cl_mem output_buffer;
-	output_buffer = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int)*NUM_DATA, NULL, &_err));
+	output_buffer = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int)*NUM_DATA*NUM_DATA, NULL, &_err));
 
-	int factor = 2;
+	int factor = 5;
+
+  int width = 10;
+  int height = 10;
 
 	cl_kernel kernel;
 	kernel = CL_CHECK_ERR(clCreateKernel(program, "simple_demo", &_err));
 	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(input_buffer), &input_buffer));
 	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_buffer), &output_buffer));
 	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(factor), &factor));
+	CL_CHECK(clSetKernelArg(kernel, 3, sizeof(width), &width));
+	CL_CHECK(clSetKernelArg(kernel, 4, sizeof(height), &height));
 
 	cl_command_queue queue;
 	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
@@ -165,13 +161,13 @@ int main(int argc, char **argv)
 	}
 
 	cl_event kernel_completion;
-	size_t global_work_size[1] = { NUM_DATA };
-	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, 1, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+	size_t global_work_size[2] = { NUM_DATA, NUM_DATA };
+	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
 	CL_CHECK(clReleaseEvent(kernel_completion));
 
 	printf("Result:");
-	for (int i=0; i<NUM_DATA; i++) {
+	for (int i=0; i<NUM_DATA*NUM_DATA; i++) {
 		int data;
 		CL_CHECK(clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, i*sizeof(int), sizeof(int), &data, 0, NULL, NULL));
 		printf(" %d", data);
@@ -184,7 +180,7 @@ int main(int argc, char **argv)
 	CL_CHECK(clReleaseKernel(kernel));
 	CL_CHECK(clReleaseProgram(program));
 	CL_CHECK(clReleaseContext(context));
-
+  free(program_source);
 	return 0;
 }
 
