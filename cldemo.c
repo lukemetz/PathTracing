@@ -1,7 +1,8 @@
-//Orion says hello
 /*
- *  Simple OpenCL demo program
+ *  Path Tracing renderer
  *
+ *  Based on:
+ *  Simple OpenCL demo program
  *  Copyright (C) 2009  Clifford Wolf <clifford@clifford.at>
  *
  *  This program is free software; you can redistribute it and/or modify
@@ -17,9 +18,6 @@
  *  You should have received a copy of the GNU General Public License
  *  along with this program; if not, write to the Free Software
  *  Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
- *
- *  gcc -o cldemo -std=gnu99 -Wall -I/usr/include/nvidia-current cldemo.c -lOpenCL
- *
  */
 
 #include <CL/cl.h>
@@ -117,16 +115,26 @@ int main(int argc, char **argv)
 	cl_context context;
 	context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
 
-	const char *program_source[] = {
-		"__kernel void simple_demo(__global int *src, __global int *dst, int factor)\n",
-		"{\n",
-		"	int i = get_global_id(0);\n",
-		"	dst[i] = src[i] * factor;\n",
-		"}\n"
-	};
+  FILE *f = fopen("kernel.cl", "rb");
+  fseek(f, 0, SEEK_END);
+  long pos = ftell(f);
+  fseek(f, 0, SEEK_SET);
+
+  char *program_source = malloc(pos);
+  fread(program_source, pos, 1, f);
+  fclose(f);
+
+
+	/* const char *program_source[] = { */
+    /* "__kernel void simple_demo(__global int *src, __global int *dst, int factor)\n", */
+    /* "{\n", */
+    /* "	int i = get_global_id(0);\n", */
+    /* "	dst[i] = src[i] * factor;\n", */
+    /* "}\n" */
+	/* }; */
 
 	cl_program program;
-	program = CL_CHECK_ERR(clCreateProgramWithSource(context, sizeof(program_source)/sizeof(*program_source), program_source, NULL, &_err));
+	program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
 	if (clBuildProgram(program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
 		char buffer[10240];
 		clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
