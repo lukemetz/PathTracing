@@ -1,3 +1,4 @@
+//Orion says hello
 /*
  *  Simple OpenCL demo program
  *
