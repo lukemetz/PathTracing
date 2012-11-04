@@ -31,12 +31,12 @@ inline float2 tent_distribution()
 
 float3 radiance(Ray * ray, int depth)
 {
-  float3 ret = {.5,.5,.5};
+  float3 ret = {.8,.1,.3};
 
   return ret;
 }
 
-__kernel void simple_demo(__global int *src, __global int *dst, int factor, int width, int height)
+__kernel void path_trace(__global float *out_r, __global float *out_g, __global float *out_b, int width, int height)
 {
   float3 origin = {50.0f, 52.0f, 295.6f};
   float3 direction = {0.0f, -.042612f, -1.0f};
@@ -46,7 +46,9 @@ __kernel void simple_demo(__global int *src, __global int *dst, int factor, int 
   float3 cx = width * .5135f / height;
   float3 cy = normalize( cross( cx, cam.direction ) ) * .5135f;
   
-  int samps = 10;
+  int samps = 1;
+  
+  float3 final_radiance = 0;
 
   float2 pixel = {x,y};
   for (int sy = 0; sy < 2; ++sy) {
@@ -65,8 +67,10 @@ __kernel void simple_demo(__global int *src, __global int *dst, int factor, int 
         Ray ray = { cam.origin + d * 140, normalize( d ) };
         sub_radiance += radiance( &ray, 0 ) * ( 1.0f / samps);
       }
+        final_radiance +=sub_radiance*.25f;// clamp(sub_radiance, 0.f, 1.0f)*.25f;
     }
   }
-	dst[x*width+y] = x * 10 + y;
-
+  out_r[x+width*y] = final_radiance.x;
+  out_g[x+width*y] = final_radiance.y;
+  out_b[x+width*y] = final_radiance.z;
 }

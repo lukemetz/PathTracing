@@ -28,7 +28,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#define NUM_DATA 10
+#include <math.h>
 
 #define CL_CHECK(_expr)                                                         \
    do {                                                                         \
@@ -55,6 +55,16 @@ void pfn_notify(const char *errinfo, const void *private_info, size_t cb, void *
 	fprintf(stderr, "OpenCL Error (via pfn_notify): %s\n", errinfo);
 }
 
+float clamp(float x)
+{
+  return x<0 ? 0 : x>1 ? 1 : x;
+}
+
+int to_int(float val)
+{
+  return (int) (pow(clamp(val),1/2.2)*255+.5);
+}
+
 int main(int argc, char **argv)
 {
 	cl_platform_id platforms[100];
@@ -62,8 +72,7 @@ int main(int argc, char **argv)
 	CL_CHECK(clGetPlatformIDs(100, platforms, &platforms_n));
 
 	printf("=== %d OpenCL platform(s) found: ===\n", platforms_n);
-	for (int i=0; i<platforms_n; i++)
-	{
+	for (int i=0; i<platforms_n; i++){
 		char buffer[10240];
 		printf("  -- %d --\n", i);
 		CL_CHECK(clGetPlatformInfo(platforms[i], CL_PLATFORM_PROFILE, 10240, buffer, NULL));
@@ -122,7 +131,7 @@ int main(int argc, char **argv)
   char *program_source = malloc(pos);
   fread(program_source, pos, 1, f);
   fclose(f);
-  printf("%s \n", program_source);
+
 	cl_program program;
 
   program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
@@ -134,48 +143,55 @@ int main(int argc, char **argv)
 	}
 	CL_CHECK(clUnloadCompiler());
 
-	cl_mem input_buffer;
-	input_buffer = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*NUM_DATA, NULL, &_err));
+  int width = 30;
+  int height = 20;
 
-	cl_mem output_buffer;
-	output_buffer = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(int)*NUM_DATA*NUM_DATA, NULL, &_err));
+	cl_mem output_r;
+  cl_mem output_g;
+  cl_mem output_b;
 
-	int factor = 5;
-
-  int width = 10;
-  int height = 10;
+  output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
+	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
+	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
 
 	cl_kernel kernel;
-	kernel = CL_CHECK_ERR(clCreateKernel(program, "simple_demo", &_err));
-	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(input_buffer), &input_buffer));
-	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_buffer), &output_buffer));
-	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(factor), &factor));
+	kernel = CL_CHECK_ERR(clCreateKernel(program, "path_trace", &_err));
+	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(output_r), &output_r));
+	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_g), &output_g));
+	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_b), &output_b));
 	CL_CHECK(clSetKernelArg(kernel, 3, sizeof(width), &width));
 	CL_CHECK(clSetKernelArg(kernel, 4, sizeof(height), &height));
 
 	cl_command_queue queue;
 	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
-	for (int i=0; i<NUM_DATA; i++) {
-		CL_CHECK(clEnqueueWriteBuffer(queue, input_buffer, CL_TRUE, i*sizeof(int), sizeof(int), &i, 0, NULL, NULL));
-	}
+  cl_event kernel_completion;
 
-	cl_event kernel_completion;
-	size_t global_work_size[2] = { NUM_DATA, NUM_DATA };
-	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, 2, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+  int work_group_size = 2;
+	size_t global_work_size[2] = { width, height};
+	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+
 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
 	CL_CHECK(clReleaseEvent(kernel_completion));
 
+  //Make the ppm
 	printf("Result:");
-	for (int i=0; i<NUM_DATA*NUM_DATA; i++) {
-		int data;
-		CL_CHECK(clEnqueueReadBuffer(queue, output_buffer, CL_TRUE, i*sizeof(int), sizeof(int), &data, 0, NULL, NULL));
-		printf(" %d", data);
+  FILE *fout = fopen("image.ppm", "w");
+  fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
+
+	for (int i=0; i<width*height; i++) {
+		float r,g,b;
+    CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, i*sizeof(float), sizeof(float), &r, 0, NULL, NULL));
+		CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, i*sizeof(float), sizeof(float), &g, 0, NULL, NULL));
+		CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, i*sizeof(float), sizeof(float), &b, 0, NULL, NULL));
+    printf("%f %f %f \n", r, g, b);
+    fprintf(fout, "%d %d %d ", to_int(r), to_int(g), to_int(b));
 	}
 	printf("\n");
 
-	CL_CHECK(clReleaseMemObject(input_buffer));
-	CL_CHECK(clReleaseMemObject(output_buffer));
+	CL_CHECK(clReleaseMemObject(output_r));
+	CL_CHECK(clReleaseMemObject(output_g));
+	CL_CHECK(clReleaseMemObject(output_b));
 
 	CL_CHECK(clReleaseKernel(kernel));
 	CL_CHECK(clReleaseProgram(program));
@@ -183,4 +199,5 @@ int main(int argc, char **argv)
   free(program_source);
 	return 0;
 }
+
 
