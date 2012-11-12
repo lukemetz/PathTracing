@@ -124,6 +124,7 @@ int main(int argc, char **argv)
 	cl_context context;
 	context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
 
+  //dumps contents of kernel.cl into a string (don't need to edit this)
   FILE *f = fopen("kernel.cl", "rb");
   fseek(f, 0, SEEK_END);
   long pos = ftell(f);
@@ -147,15 +148,20 @@ int main(int argc, char **argv)
   int height = 20;
 
 	cl_mem output_r;
-  cl_mem output_g;
-  cl_mem output_b;
+  	cl_mem output_g;
+  	cl_mem output_b;
 
-  output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
+  	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
 	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
 	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
 
+	//create an instance of the kernel
 	cl_kernel kernel;
+
+	//inputs are for the path_trace function of the kernel
 	kernel = CL_CHECK_ERR(clCreateKernel(program, "path_trace", &_err));
+
+	//sets the arguments of path_trace in order	
 	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(output_r), &output_r));
 	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_g), &output_g));
 	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_b), &output_b));
@@ -165,28 +171,52 @@ int main(int argc, char **argv)
 	cl_command_queue queue;
 	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
-  cl_event kernel_completion;
+  	cl_event kernel_completion;
 
-  int work_group_size = 2;
+  	//this work group is two dimensional
+  	int work_group_size = 2;
+	//the actual size of the work group is widthxheight
 	size_t global_work_size[2] = { width, height};
-	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
 
+	//this creates the work group
+	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+	
+	//kernel either runs when you call clWaitForEvents (below) or it runs when you call 
+	//clEnqueueNDRangeKernel (above), we are not really sure.
 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
 	CL_CHECK(clReleaseEvent(kernel_completion));
+	
 
-  //Make the ppm
+  	//The following junk creates the image
 	printf("Result:");
-  FILE *fout = fopen("image.ppm", "w");
-  fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
 
+  	//create the ppm file
+  	FILE *fout = fopen("image.ppm", "w");
+
+  	//sets width and height of ppm
+  	fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
+
+	//iterate through each pixel
 	for (int i=0; i<width*height; i++) {
+                //rgb values of a given pixel		
 		float r,g,b;
-    CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, i*sizeof(float), sizeof(float), &r, 0, NULL, NULL));
+
+		//read the output buffers
+		//(it is ordered already, so you don't need to figure out pixel position for the ppm)
+    		CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, i*sizeof(float), sizeof(float), &r, 0, NULL, NULL));
 		CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, i*sizeof(float), sizeof(float), &g, 0, NULL, NULL));
 		CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, i*sizeof(float), sizeof(float), &b, 0, NULL, NULL));
-    printf("%f %f %f \n", r, g, b);
-    fprintf(fout, "%d %d %d ", to_int(r), to_int(g), to_int(b));
+
+		//print out to screen the rgb values    		
+		printf("%f %f %f \n", r, g, b);
+
+		//appends the next pixel to the ppm file (it knows where in the ppm to put it)
+    		fprintf(fout, "%d %d %d ", to_int(r), to_int(g), to_int(b));
 	}
+
+
+	//boiler plate stuff, you can ignore it (but don't touch!)
+
 	printf("\n");
 
 	CL_CHECK(clReleaseMemObject(output_r));
@@ -196,7 +226,7 @@ int main(int argc, char **argv)
 	CL_CHECK(clReleaseKernel(kernel));
 	CL_CHECK(clReleaseProgram(program));
 	CL_CHECK(clReleaseContext(context));
-  free(program_source);
+  	free(program_source);
 	return 0;
 }
 
