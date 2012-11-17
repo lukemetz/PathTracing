@@ -29,8 +29,8 @@ __constant Sphere spheres[] = {//Scene: radius, position, emission, color, mater
   //{1e5, {50,40.8,-1e5+170}, {0,0,0},{0,0,0}},//Frnt
   //Sphere(1e5, Vec(50, 1e5, 81.6),    Vec(),Vec(.75,.75,.75),DIFF),//Botm
   //Sphere(1e5, Vec(50,-1e5+81.6,81.6),Vec(),Vec(.75,.75,.75),DIFF),//Top
-  {16.5, {27,16.5,47},{0,0,0},{0.99f, 0.99f, 0.99f}},
-  {16.5, {73,16.5,78}, {0,0,0},{0.99f, 0.99f, 0.99f}},
+  {16.5, {27,16.5,47},{0,0,0},{0.999f, 0.999f, 0.999f}},
+  {16.5, {73,16.5,78}, {0,0,0},{0.999f, 0.999f, 0.999f}},
   {600, {50,681.6-.27,81.6},{12,12,12},{0,0,0}} //Lite
 };
 
@@ -74,22 +74,18 @@ inline float2 tent_distribution(unsigned int *seed)
 inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 {
   float3 op = sphere->position - ray->origin; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
-  float esp = 1e-4;
+  float eps = 1e-4;
   float b = dot(ray->direction, op);
-  float det = b * b - dot(op, op) + sphere->radius*sphere->radius;
-  
-  
-  
+
+  float det = b * b - dot(op, op) + sphere->radius * sphere->radius;
   if (det > 0) {
-    //return det;
     det = sqrt(det);
     float t = b-det;
-    if (t > esp) {
+    if (t > eps) {
       return t;
     }
-
     t = b+det;
-    if (t > esp) {
+    if (t > eps) {
       return t;
     }
   }
@@ -98,11 +94,11 @@ inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 
 inline bool intersect(Ray *ray, float *t, int *id)
 {
-  float n=6;//sizeof(spheres);
+  int n=3;//sizeof(spheres);
   float inf = 1e20;
   *t = inf;
 
-  for(int i=(int)n; i > 0; --i) {
+  for(int i=0; n > i; ++i) {
     float d = sphere_intersect_ray(&(spheres[i]), ray);
     if ( d && d < (*t)) {
       *t = d;
@@ -127,7 +123,13 @@ float3 radiance(Ray * ray, int depth)
 }
 
 //inputs are the five kernel arguments (the first 3 are output buffer pointers)
-__kernel void path_trace(__global int *seeds, __global float *out_r, __global float *out_g, __global float *out_b, int width, int height)
+__kernel void path_trace(__global int *seeds,
+                        __global float *out_r,
+                        __global float *out_g,
+                        __global float *out_b,
+                        int width,
+                        int height
+                        )
 {
 
   //defines camera position
@@ -142,17 +144,16 @@ __kernel void path_trace(__global int *seeds, __global float *out_r, __global fl
   //returns the position of pixel in the work group
   int x = get_global_id(0);
   int y = get_global_id(1);
-
-  int array_index = x+width*y;
-  int seed = seeds[array_index];
+  
+  int array_index = (height-y-1)*width+x;//x+width*y;
+  unsigned int seed = seeds[array_index];
 
   //projects rays through the lens
-  float3 cx = width * .5135f / height;
+  float3 cx = {width * .5135f / height, 0, 0};
+ // float3 crss = {cx.x*cam.direction.z-cx.z*cam.direction.y,cx.z*cam.direction.x-cx.x*cam.direction.z,cx.x*cam.direction.y-cx.y*cam.direction.x};
   float3 cy = normalize(cross(cx, cam.direction)) * .5135f;
-  
   //number of samples being run for the pixel
-  int samps = 1;
-  
+  int samps = 100;
   float3 final_radiance = 0;
 
   //pixel is a position in the pixel array 
@@ -170,18 +171,16 @@ __kernel void path_trace(__global int *seeds, __global float *out_r, __global fl
       //iterates samps times
       for (int s=0; s<samps; s++){
         //delta is a random vector (lives inside the unit square)
-        //float2 delta = tent_distribution(&seed);
+        // float2 delta = tent_distribution(&seed);
         float2 delta = {0,0};
 
-        float3 ray_direction = cx * ( ( (sx + .5f + delta.x)/2 + pixel.x)/width - .5f)  +
-                    cy * ( ( (sy + .5f + delta.y)/2 + pixel.y)/height - .5f) + cam.direction;
-
-        //float3 ray_direction = {-1, -1, 0};
-
+        float3 ray_direction = cx * ( ( (sx + .5f + delta.x)/2 + pixel.x)/width - .5f)
+                             + cy * ( ( (sy + .5f + delta.y)/2 + pixel.y)/height - .5f)
+                             + cam.direction;
+                    
         //ray is a vector starting at the camera position + d*140
         //pointing in the direction of d
-        Ray ray = { cam.origin + ray_direction * 140, normalize( ray_direction ) };
-
+        Ray ray = { cam.origin + ray_direction * 140, normalize( ray_direction )};
         //calculate the radiance value for the subpixel for this sample
         //then average them across samples
         sub_radiance += radiance( &ray, 0 ) * ( 1.0f / samps);

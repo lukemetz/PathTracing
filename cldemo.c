@@ -144,8 +144,9 @@
  	}
  	CL_CHECK(clUnloadCompiler());
 
- 	int width = 320;
- 	int height = 240;
+ 	int width = 1024/2;	
+ 	int height = 768/2;
+ 	width=height=100;
 
  	cl_mem random_seeds;
  	cl_mem output_r;
@@ -176,12 +177,14 @@
  	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
  	
  	//set up random seeds buffer
-
-
+ 	unsigned int mult = 2654435761U;
+ 	unsigned int seed = 123456778;
+ 	printf("calculating random seeds \n");
  	for (int i=0; i < width*height; ++i) {
- 		int seed = rand();
+ 		seed = rand();//seed*mult;
  		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
  	}
+ 	printf("done random calculation \n");
 
  	cl_event kernel_completion;
 
@@ -191,11 +194,13 @@
  	size_t global_work_size[2] = { width, height};
 
 	//this creates the work group
+	printf("enqueueing \n");
  	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
-
+ 	printf("waiting \n");
 	//kernel either runs when you call clWaitForEvents (below) or it runs when you call 
 	//clEnqueueNDRangeKernel (above), we are not really sure.
  	CL_CHECK(clWaitForEvents(1, &kernel_completion));
+ 	printf("releasing \n");
  	CL_CHECK(clReleaseEvent(kernel_completion));
 
 
