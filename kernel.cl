@@ -23,15 +23,15 @@ typedef struct
 
 //hard code in the scene for now
 __constant Sphere spheres[] = {//Scene: radius, position, emission, color, material
-  //Sphere(1e5, Vec( 1e5+1,40.8,81.6), Vec(),Vec(.75,.25,.25),DIFF),//Left
-  //{1e5, {-1e5+99,40.8,81.6},{0,0,0},{.25,.25,.75}},//Rght
-  //{1e5, {50,40.8, 1e5}, {0,0,0},{.75,.75,.75}},//Back
-  //{1e5, {50,40.8,-1e5+170}, {0,0,0},{0,0,0}},//Frnt
-  //Sphere(1e5, Vec(50, 1e5, 81.6),    Vec(),Vec(.75,.75,.75),DIFF),//Botm
-  //Sphere(1e5, Vec(50,-1e5+81.6,81.6),Vec(),Vec(.75,.75,.75),DIFF),//Top
-  {16.5, {27,16.5,47},{0,0,0},{0.999f, 0.999f, 0.999f}},
-  {16.5, {73,16.5,78}, {0,0,0},{0.999f, 0.999f, 0.999f}},
-  {600, {50,681.6-.27,81.6},{12,12,12},{0,0,0}} //Lite
+  {1e5,   { 1e5+1,40.8,81.6}, {0,0,0},    {.75,.25,.25}},//Left
+  {1e5,   {-1e5+99,40.8,81.6},{0,0,0},    {.25,.25,.75}},//Rght
+  {1e5,   {50,40.8, 1e5},     {0,0,0},    {.75,.75,.75}},//Back
+  {1e5,   {50,40.8,-1e5+170}, {0,0,0},    {0,0,0}},//Frnt
+  {1e5,   {50, 1e5, 81.6},    {0,0,0},    {.75,.75,.75}},//Botm
+  {1e5,   {50,-1e5+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
+  {16.5,  {27,16.5,47},       {0,0,0},    {0.999f, 0.999f, 0.999f}},
+  {16.5,  {73,16.5,78},       {0,0,0},    {0.999f, 0.999f, 0.999f}},
+  {600,   {50,681.6-.27,81.6},{12,12,12}, {0,0,0}} //Lite
 };
 
 
@@ -94,10 +94,9 @@ inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 
 inline bool intersect(Ray *ray, float *t, int *id)
 {
-  int n=3;//sizeof(spheres);
+  int n=9;//sizeof(spheres);
   float inf = 1e20;
   *t = inf;
-
   for(int i=0; n > i; ++i) {
     float d = sphere_intersect_ray(&(spheres[i]), ray);
     if ( d && d < (*t)) {
@@ -108,18 +107,71 @@ inline bool intersect(Ray *ray, float *t, int *id)
   return (*t) < inf;
 }
 
-float3 radiance(Ray * ray, int depth)
+float3 radiance(unsigned int * seed, Ray * ray, int depth)
 {
-  float3 ret = {0,0,0};
   float t;
   int id=0;
-  if (!intersect(ray, &t, &id)) {
-    return ret; 
+
+  float3 accumulated_color = {0,0,0};
+  float3 accumulated_reflectance = {1,1,1};
+  while(1) {
+    if (!intersect(ray, &t, &id)) {
+      return accumulated_color; 
+    }
+    __constant Sphere * obj = &spheres[id];
+    float3 hit_pos = ray->origin + ray->direction*t;
+    float3 normal = normalize(hit_pos-obj->position);
+    float3 normal_l;
+    if (dot(normal, ray->direction) < 0) {
+      normal_l = normal;
+    } else {
+      normal_l = -1*normal;
+    }
+    float3 f = obj->color;
+
+    float p;//max refl
+    if (f.x > f.y && f.x > f.z) {
+      p = f.x;
+    } else if (f.y > f.z) {
+      p = f.y;
+    } else {
+      p = f.z;
+    }
+    accumulated_color += accumulated_reflectance*obj->emission;
+    if (++depth > 5) {
+      if (random(seed) < p) {
+        f = f*(1/p);
+      } else {
+        return accumulated_color;
+      }
+    }
+    accumulated_reflectance = accumulated_reflectance*f;
+
+    //Just diffusion for now
+    {
+      float r1 = 2*M_PI*random(seed);
+      float r2 = random(seed);
+      float r2_sqrt = sqrt(r2);
+
+      //Create orthonormal basis uvw
+      float3 w=normal_l;
+      float3 u = {0,0,0};
+      if (fabs(w.x) > .1) {
+        u.y = 1;
+      } else {
+        u.x = 1;
+      }
+      u = normalize(cross(u, w));
+      float3 v = cross(w,u);
+
+      float3 d = normalize(u*cos(r1)*r2_sqrt + v*sin(r1)*r2_sqrt + w*sqrt(1-r2));
+      ray->origin = hit_pos;
+      ray->direction = d;
+      continue;
+    }
   }
-  ret.x = 1;
-  ret.y = 1;
-  ret.z = 1;
-  return ret;
+
+  return accumulated_color;
 }
 
 //inputs are the five kernel arguments (the first 3 are output buffer pointers)
@@ -153,7 +205,7 @@ __kernel void path_trace(__global int *seeds,
  // float3 crss = {cx.x*cam.direction.z-cx.z*cam.direction.y,cx.z*cam.direction.x-cx.x*cam.direction.z,cx.x*cam.direction.y-cx.y*cam.direction.x};
   float3 cy = normalize(cross(cx, cam.direction)) * .5135f;
   //number of samples being run for the pixel
-  int samps = 100;
+  int samps = 50;
   float3 final_radiance = 0;
 
   //pixel is a position in the pixel array 
@@ -171,8 +223,7 @@ __kernel void path_trace(__global int *seeds,
       //iterates samps times
       for (int s=0; s<samps; s++){
         //delta is a random vector (lives inside the unit square)
-        // float2 delta = tent_distribution(&seed);
-        float2 delta = {0,0};
+        float2 delta = tent_distribution(&seed);
 
         float3 ray_direction = cx * ( ( (sx + .5f + delta.x)/2 + pixel.x)/width - .5f)
                              + cy * ( ( (sy + .5f + delta.y)/2 + pixel.y)/height - .5f)
@@ -183,12 +234,12 @@ __kernel void path_trace(__global int *seeds,
         Ray ray = { cam.origin + ray_direction * 140, normalize( ray_direction )};
         //calculate the radiance value for the subpixel for this sample
         //then average them across samples
-        sub_radiance += radiance( &ray, 0 ) * ( 1.0f / samps);
+        sub_radiance += radiance(&seed, &ray, 0 ) * ( 1.0f / samps);
       }
 
       //average the radiance values across subpixels
       //to find the radiance value of a given pixel
-        final_radiance += sub_radiance*.25f;// clamp(sub_radiance, 0.f, 1.0f)*.25f;
+        final_radiance += sub_radiance*clamp(sub_radiance, 0.f, 1.0f)*.25f;
       }
     }
 
