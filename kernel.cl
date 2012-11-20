@@ -29,8 +29,8 @@ __constant Sphere spheres[] = {//Scene: radius, position, emission, color, mater
   {1e5,   {50,40.8,-1e5+170}, {0,0,0},    {0,0,0}},//Frnt
   {1e5,   {50, 1e5, 81.6},    {0,0,0},    {.75,.75,.75}},//Botm
   {1e5,   {50,-1e5+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
-  {16.5,  {27,16.5,47},       {0,0,0},    {0.999f, 0.999f, 0.999f}},
-  {16.5,  {73,16.5,78},       {0,0,0},    {0.999f, 0.999f, 0.999f}},
+  {16.5,  {27,16.5,47},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
+  {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
   {600,   {50,681.6-.27,81.6},{12,12,12}, {0,0,0}} //Lite
 };
 
@@ -99,9 +99,9 @@ inline bool intersect(Ray *ray, float *t, int *id)
   *t = inf;
   for(int i=0; n > i; ++i) {
     float d = sphere_intersect_ray(&(spheres[i]), ray);
-    if ( d && d < (*t)) {
-      *t = d;
-      *id = i;
+    if ( d != 0 && d < (*t)) {
+      (*t) = d;
+      (*id) = i;
     }
   }
   return (*t) < inf;
@@ -110,15 +110,14 @@ inline bool intersect(Ray *ray, float *t, int *id)
 float3 radiance(unsigned int * seed, Ray * ray, int depth)
 {
   float t;
-  int id=0;
-
+  int id;
   float3 accumulated_color = {0,0,0};
   float3 accumulated_reflectance = {1,1,1};
   while(1) {
     if (!intersect(ray, &t, &id)) {
       return accumulated_color; 
     }
-    __constant Sphere * obj = &spheres[id];
+    __constant Sphere * obj = &(spheres[id]);
     float3 hit_pos = ray->origin + ray->direction*t;
     float3 normal = normalize(hit_pos-obj->position);
     float3 normal_l;
@@ -137,8 +136,9 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
     } else {
       p = f.z;
     }
+
     accumulated_color += accumulated_reflectance*obj->emission;
-    if (++depth > 5) {
+    if (++depth > 3) {
       if (random(seed) < p) {
         f = f*(1/p);
       } else {
@@ -180,7 +180,8 @@ __kernel void path_trace(__global int *seeds,
                         __global float *out_g,
                         __global float *out_b,
                         int width,
-                        int height
+                        int height,
+                        int offset
                         )
 {
 
@@ -194,10 +195,10 @@ __kernel void path_trace(__global int *seeds,
   Ray cam = {origin, normalize(direction)};
 
   //returns the position of pixel in the work group
-  int x = get_global_id(0);
-  int y = get_global_id(1);
-  
-  int array_index = (height-y-1)*width+x;//x+width*y;
+  int array_index = get_global_id(0);
+  int x = (array_index+offset)%width;
+  int y = (array_index+offset)/width;
+  //int array_index = (height-y-1)*width+x;//x+width*y;
   unsigned int seed = seeds[array_index];
 
   //projects rays through the lens

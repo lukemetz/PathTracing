@@ -30,6 +30,8 @@
 
 #include <math.h>
 
+#define min(a, b) (((a) < (b)) ? (a) : (b))
+
 #define CL_CHECK(_expr)                                                         \
  do {                                                                         \
  	cl_int _err = _expr;                                                       \
@@ -146,17 +148,17 @@
 
  	int width = 1024/2;	
  	int height = 768/2;
- 	width=height=100;
 
  	cl_mem random_seeds;
  	cl_mem output_r;
  	cl_mem output_g;
  	cl_mem output_b;
+ 	#define MAX_WORKGROUP 100000//(1048576/2) //2^20
 
- 	random_seeds = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*width*height, NULL, &_err));
- 	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
- 	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
- 	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*width*height, NULL, &_err));
+ 	random_seeds = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
+ 	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+ 	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+ 	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
 
 
 	//create an instance of the kernel
@@ -177,10 +179,10 @@
  	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
  	
  	//set up random seeds buffer
- 	unsigned int mult = 2654435761U;
+ 	//unsigned int mult = 2654435761U;
  	unsigned int seed = 123456778;
  	printf("calculating random seeds \n");
- 	for (int i=0; i < width*height; ++i) {
+ 	for (int i=0; i < MAX_WORKGROUP; ++i) {
  		seed = rand();//seed*mult;
  		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
  	}
@@ -188,24 +190,41 @@
 
  	cl_event kernel_completion;
 
+
   	//this work group is two dimensional
- 	int work_group_size = 2;
+ 	int work_group_size = 1;
 	//the actual size of the work group is widthxheight
- 	size_t global_work_size[2] = { width, height};
+ 	size_t total_size = width*height*sizeof(float);
+ 	float *out_r = (float *)malloc(total_size);
+ 	float *out_g = (float *)malloc(total_size);
+ 	float *out_b = (float *)malloc(total_size);
+ 	for(int i=0; i < (width*height)/MAX_WORKGROUP+1; ++i) {
+ 		size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
+ 		printf("%d \n", (int)workgroup_amount);
+ 		if(workgroup_amount <= 0)
+ 			break;
+ 		
+ 		size_t global_work_size[1] = { workgroup_amount };
+		//this creates the work group
+		fprintf(stderr, "enqueueing \n");
+		int offset = i*MAX_WORKGROUP;
+		CL_CHECK(clSetKernelArg(kernel, 6, sizeof(offset), &offset));
 
-	//this creates the work group
-	printf("enqueueing \n");
- 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
- 	printf("waiting \n");
-	//kernel either runs when you call clWaitForEvents (below) or it runs when you call 
-	//clEnqueueNDRangeKernel (above), we are not really sure.
- 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
- 	printf("releasing \n");
- 	CL_CHECK(clReleaseEvent(kernel_completion));
+	 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+	 	fprintf(stderr,"waiting \n");
+		//kernel either runs when you call clWaitForEvents (below) or it runs when you call 
+		//clEnqueueNDRangeKernel (above), we are not really sure.
+	 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
+	 	//printf("releasing \n");
 
-
+ 		
+ 		CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
+ 		CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
+ 		CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
+	}
+	CL_CHECK(clReleaseEvent(kernel_completion));
   	//The following junk creates the image
- 	printf("Result:");
+ 	printf("Done 1:");
 
   	//create the ppm file
  	FILE *fout = fopen("image.ppm", "w");
@@ -214,13 +233,8 @@
  	fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
 
 	//read the output buffers
- 	size_t size = width*height*sizeof(float);
- 	float *out_r = (float *)malloc(size);
- 	float *out_g = (float *)malloc(size);
- 	float *out_b = (float *)malloc(size);
- 	CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, size, out_r, 0, NULL, NULL));
- 	CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, size, out_g, 0, NULL, NULL));
- 	CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, size, out_b, 0, NULL, NULL));
+
+
 	//iterate through each pixel
  	for (int i=0; i<width*height; i++) {
 		//appends the next pixel to the ppm file (it knows where in the ppm to put it)
@@ -231,7 +245,7 @@
 	//boiler plate stuff, you can ignore it (but don't touch!)
 
  	printf("\n");
-
+ 	CL_CHECK(clReleaseMemObject(random_seeds));
  	CL_CHECK(clReleaseMemObject(output_r));
  	CL_CHECK(clReleaseMemObject(output_g));
  	CL_CHECK(clReleaseMemObject(output_b));
