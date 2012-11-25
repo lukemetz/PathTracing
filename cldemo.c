@@ -29,6 +29,8 @@
 #include <unistd.h>
 
 #include <math.h>
+#include <GL/glew.h>
+#include <GL/glfw.h>
 
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
@@ -69,9 +71,61 @@ int to_int(float val)
 }
 
 
+void make_window()
+{
+	if( !glfwInit() ) {
+	    fprintf( stderr, "Failed to initialize GLFW\n" );
+	    exit(-1);
+	}
+	//glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4); // 4x antialiasing
+	//glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3); // We want OpenGL 3.3
+	//glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
+	//glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //We don't want the old OpenGL
+
+	// Open a window and create its OpenGL context
+	if( !glfwOpenWindow(200, 200, 0,0,0,0, 32,0, GLFW_WINDOW ) )
+	{
+	    fprintf( stderr, "Failed to open GLFW window\n" );
+	    glfwTerminate();
+	    exit(-1);
+	}
+
+	if (glewInit() != GLEW_OK) {
+	    fprintf(stderr, "Failed to initialize GLEW\n");
+	    exit(-1);
+	}
+	glfwSetWindowTitle("PathTracer" );
+}
+
+void save_to_file(int width, int height, float *out_r, float *out_g, float *out_b)
+{
+	//create the ppm file
+	FILE *fout = fopen("image.ppm", "w");
+
+	//sets width and height of ppm
+	fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
+
+	//read the output buffers
+
+
+	//iterate through each pixel
+	for (int i=0; i<width*height; i++) {
+	//appends the next pixel to the ppm file (it knows where in the ppm to put it)
+		fprintf(fout, "%d %d %d ", to_int(out_r[i]), to_int(out_g[i]), to_int(out_b[i]));
+	}
+}
+
+void fill_pixels(int *pixels, int width, int height, float *out_r, float *out_g, float *out_b)
+{
+	for (int i=0; i < width*height; ++i) {
+		pixels[i] = to_int(out_r[i]) + ( to_int(out_g[i]) << 8 ) + ( to_int(out_b[i]) << 16 );
+		//pixels[i] = 0xbb00aaff;
+	}
+}
 
 int main(int argc, char **argv)
 {
+	make_window();
 	cl_platform_id platforms[100];
 	cl_uint platforms_n = 0;
 	CL_CHECK(clGetPlatformIDs(100, platforms, &platforms_n));
@@ -97,7 +151,7 @@ int main(int argc, char **argv)
 
 	cl_device_id devices[100];
 	cl_uint devices_n = 0;
-// CL_CHECK(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
+	// CL_CHECK(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
 	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 100, devices, &devices_n));
 
 	printf("=== %d OpenCL device(s) found on platform:\n", platforms_n);
@@ -129,7 +183,7 @@ int main(int argc, char **argv)
 	cl_context context;
 	context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
 
-//dumps contents of kernel.cl into a string (don't need to edit this)
+	//dumps contents of kernel.cl into a string (don't need to edit this)
 	FILE *f = fopen("kernel.cl", "rb");
 	fseek(f, 0, SEEK_END);
 	long pos = ftell(f);
@@ -152,6 +206,9 @@ int main(int argc, char **argv)
 	int width = 1024/2;
 	int height = 768/2;
 	width=height=200;
+
+	int *pixels = (int *)malloc(sizeof(int)*width*height);
+
 	cl_mem random_seeds;
 	cl_mem output_r;
 	cl_mem output_g;
@@ -164,10 +221,10 @@ int main(int argc, char **argv)
 	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
 
 
-//create an instance of the kernel
+	//create an instance of the kernel
 	cl_kernel kernel;
 
-//inputs are for the path_trace function of the kernel
+	//inputs are for the path_trace function of the kernel
 	kernel = CL_CHECK_ERR(clCreateKernel(program, "path_trace", &_err));
 
 	cl_command_queue queue;
@@ -184,73 +241,70 @@ int main(int argc, char **argv)
 	printf("done random calculation \n");
 
 	cl_event kernel_completion;
-clock_t time_after;
-clock_t time_before;
-time_before = clock();
+	glfwEnable( GLFW_STICKY_KEYS );
+	do{
+		clock_t time_after;
+		clock_t time_before;
+		time_before = clock();
 
-//sets the arguments of path_trace in order
+		//sets the arguments of path_trace in order
 
-CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
-	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
-	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
-	CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
-	CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
-	CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
+		CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
+		CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
+		CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
+		CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
+		CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
+		CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
 
-	//this work group is two dimensional
-	int work_group_size = 1;
-//the actual size of the work group is widthxheight
-	size_t total_size = width*height*sizeof(float);
-	float *out_r = (float *)malloc(total_size);
-	float *out_g = (float *)malloc(total_size);
-	float *out_b = (float *)malloc(total_size);
-	for(int i=0; i < (width*height)/MAX_WORKGROUP+1; ++i) {
-		size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
-		printf("%d \n", (int)workgroup_amount);
-		if(workgroup_amount <= 0)
-			break;
+		//this work group is two dimensional
+		int work_group_size = 1;
+		//the actual size of the work group is widthxheight
+		size_t total_size = width*height*sizeof(float);
+		float *out_r = (float *)malloc(total_size);
+		float *out_g = (float *)malloc(total_size);
+		float *out_b = (float *)malloc(total_size);
+		for(int i=0; i < (width*height)/MAX_WORKGROUP+1; ++i) {
+			size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
+			printf("%d \n", (int)workgroup_amount);
+			if(workgroup_amount <= 0)
+				break;
 
-		size_t global_work_size[1] = { workgroup_amount };
-	//this creates the work group
-	fprintf(stderr, "enqueueing \n");
-	int offset = i*MAX_WORKGROUP;
-	CL_CHECK(clSetKernelArg(kernel, 6, sizeof(offset), &offset));
+			size_t global_work_size[1] = { workgroup_amount };
+			//this creates the work group
+			fprintf(stderr, "enqueueing \n");
+			int offset = i*MAX_WORKGROUP;
+			CL_CHECK(clSetKernelArg(kernel, 6, sizeof(offset), &offset));
 
- 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
- 	fprintf(stderr,"waiting \n");
-	//kernel either runs when you call clWaitForEvents (below) or it runs when you call
-	//clEnqueueNDRangeKernel (above), we are not really sure.
- 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
- 	//printf("releasing \n");
+		 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+		 	fprintf(stderr,"waiting \n");
+			//kernel either runs when you call clWaitForEvents (below) or it runs when you call
+			//clEnqueueNDRangeKernel (above), we are not really sure.
+		 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
+		 	//printf("releasing \n");
 
+			CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
+			CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
+			CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
+		}
+		time_after = clock();
+		glClear(GL_COLOR_BUFFER_BIT);
 
-		CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
-		CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
-		CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
-}
-time_after = clock();
-CL_CHECK(clReleaseEvent(kernel_completion));
-	//The following junk creates the image
-	printf("Done in %f seconds", ((float)(time_after-time_before))/CLOCKS_PER_SEC);
+		//move to center self in screen
+		glRasterPos2i(-1,-1);
+		fill_pixels(pixels, width, height, out_r, out_b, out_g);
 
-	//create the ppm file
-	FILE *fout = fopen("image.ppm", "w");
+		glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 
-	//sets width and height of ppm
-	fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
+		printf("Done in %f seconds \n", ((float)(time_after-time_before))/CLOCKS_PER_SEC);
+		save_to_file(width, height, out_r, out_g, out_b);
+		// Swap buffers
+		glfwSwapBuffers();
+	} // Check if the ESC key was pressed or the window was closed
+	while( glfwGetKey( GLFW_KEY_ESC ) != GLFW_PRESS && glfwGetWindowParam( GLFW_OPENED ) );
 
-//read the output buffers
+	CL_CHECK(clReleaseEvent(kernel_completion));
 
-
-//iterate through each pixel
-	for (int i=0; i<width*height; i++) {
-	//appends the next pixel to the ppm file (it knows where in the ppm to put it)
-		fprintf(fout, "%d %d %d ", to_int(out_r[i]), to_int(out_g[i]), to_int(out_b[i]));
-	}
-
-
-//boiler plate stuff, you can ignore it (but don't touch!)
-
+	//boiler plate stuff, you can ignore it (but don't touch!)
 	printf("\n");
 	CL_CHECK(clReleaseMemObject(random_seeds));
 	CL_CHECK(clReleaseMemObject(output_r));
