@@ -146,14 +146,14 @@
  	}
  	CL_CHECK(clUnloadCompiler());
 
- 	int width = 1024/2;	
+ 	int width = 1024/2;
  	int height = 768/2;
-
+ 	width=height=200;
  	cl_mem random_seeds;
  	cl_mem output_r;
  	cl_mem output_g;
  	cl_mem output_b;
- 	#define MAX_WORKGROUP 100000//(1048576/2) //2^20
+ 	#define MAX_WORKGROUP 10000//(1048576/2) //2^20
 
  	random_seeds = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
  	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
@@ -167,7 +167,7 @@
 	//inputs are for the path_trace function of the kernel
  	kernel = CL_CHECK_ERR(clCreateKernel(program, "path_trace", &_err));
 
-	//sets the arguments of path_trace in order	
+	//sets the arguments of path_trace in order
 	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
  	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
  	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
@@ -177,7 +177,7 @@
 
  	cl_command_queue queue;
  	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
- 	
+
  	//set up random seeds buffer
  	//unsigned int mult = 2654435761U;
  	unsigned int seed = 123456778;
@@ -203,7 +203,7 @@
  		printf("%d \n", (int)workgroup_amount);
  		if(workgroup_amount <= 0)
  			break;
- 		
+
  		size_t global_work_size[1] = { workgroup_amount };
 		//this creates the work group
 		fprintf(stderr, "enqueueing \n");
@@ -212,12 +212,12 @@
 
 	 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
 	 	fprintf(stderr,"waiting \n");
-		//kernel either runs when you call clWaitForEvents (below) or it runs when you call 
+		//kernel either runs when you call clWaitForEvents (below) or it runs when you call
 		//clEnqueueNDRangeKernel (above), we are not really sure.
 	 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
 	 	//printf("releasing \n");
 
- 		
+
  		CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
  		CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
  		CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));

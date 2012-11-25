@@ -7,7 +7,7 @@
 
 //defines the Ray structure. Rays have an origin and a direction.
 //They are really just vectors with an associated position
-typedef struct 
+typedef struct
 {
   float3 origin;
   float3 direction;
@@ -23,12 +23,12 @@ typedef struct
 
 //hard code in the scene for now
 __constant Sphere spheres[] = {//Scene: radius, position, emission, color, material
-  {1e5,   { 1e5+1,40.8,81.6}, {0,0,0},    {.75,.25,.25}},//Left
-  {1e5,   {-1e5+99,40.8,81.6},{0,0,0},    {.25,.25,.75}},//Rght
-  {1e5,   {50,40.8, 1e5},     {0,0,0},    {.75,.75,.75}},//Back
-  {1e5,   {50,40.8,-1e5+170}, {0,0,0},    {0,0,0}},//Frnt
-  {1e5,   {50, 1e5, 81.6},    {0,0,0},    {.75,.75,.75}},//Botm
-  {1e5,   {50,-1e5+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
+  {1e3,   { 1e3+1,40.8,81.6}, {0,0,0},    {.75,.25,.25}},//Left
+  {1e3,   {-1e3+99,40.8,81.6},{0,0,0},    {.25,.25,.75}},//Rght
+  {1e3,   {50,40.8, 1e3},     {0,0,0},    {.75,.75,.75}},//Back
+  {1e3,   {50,40.8,-1e3+170}, {0,0,0},    {0,0,0}},//Frnt
+  {1e3,   {50, 1e3, 81.6},    {0,0,0},    {.75,.75,.75}},//Botm
+  {1e3,   {50,-1e3+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
   {16.5,  {27,16.5,47},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
   {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
   {600,   {50,681.6-.27,81.6},{12,12,12}, {0,0,0}} //Lite
@@ -59,7 +59,7 @@ inline float2 tent_distribution(unsigned int *seed)
     } else {
     ret.x = 1-sqrt(2-r);
   }
-  
+
   //collects second random value
   r = 2 * random(seed);
 
@@ -115,7 +115,7 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
   float3 accumulated_reflectance = {1,1,1};
   while(1) {
     if (!intersect(ray, &t, &id)) {
-      return accumulated_color; 
+      return accumulated_color;
     }
     __constant Sphere * obj = &(spheres[id]);
     float3 hit_pos = ray->origin + ray->direction*t;
@@ -187,10 +187,10 @@ __kernel void path_trace(__global int *seeds,
 
   //defines camera position
   float3 origin = {50.0f, 52.0f, 295.6f};
-  
+
   //defines camera direction
   float3 direction = {0.0f, -.042612f, -1.0f};
-  
+
   //defines camera vector
   Ray cam = {origin, normalize(direction)};
 
@@ -209,7 +209,7 @@ __kernel void path_trace(__global int *seeds,
   int samps = 50;
   float3 final_radiance = 0;
 
-  //pixel is a position in the pixel array 
+  //pixel is a position in the pixel array
   float2 pixel = {x,y};
 
   //iterates through subpixels in y direction (2 of these)
@@ -229,7 +229,7 @@ __kernel void path_trace(__global int *seeds,
         float3 ray_direction = cx * ( ( (sx + .5f + delta.x)/2 + pixel.x)/width - .5f)
                              + cy * ( ( (sy + .5f + delta.y)/2 + pixel.y)/height - .5f)
                              + cam.direction;
-                    
+
         //ray is a vector starting at the camera position + d*140
         //pointing in the direction of d
         Ray ray = { cam.origin + ray_direction * 140, normalize( ray_direction )};
