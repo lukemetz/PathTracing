@@ -71,7 +71,7 @@ int to_int(float val)
 }
 
 
-void make_window()
+void make_window(int width, int height)
 {
 	if( !glfwInit() ) {
 	    fprintf( stderr, "Failed to initialize GLFW\n" );
@@ -83,7 +83,7 @@ void make_window()
 	//glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //We don't want the old OpenGL
 
 	// Open a window and create its OpenGL context
-	if( !glfwOpenWindow(200, 200, 0,0,0,0, 32,0, GLFW_WINDOW ) )
+	if( !glfwOpenWindow(width, height, 0,0,0,0, 32,0, GLFW_WINDOW ) )
 	{
 	    fprintf( stderr, "Failed to open GLFW window\n" );
 	    glfwTerminate();
@@ -125,7 +125,7 @@ void fill_pixels(int *pixels, int width, int height, float *out_r, float *out_g,
 
 int main(int argc, char **argv)
 {
-	make_window();
+
 	cl_platform_id platforms[100];
 	cl_uint platforms_n = 0;
 	CL_CHECK(clGetPlatformIDs(100, platforms, &platforms_n));
@@ -206,6 +206,7 @@ int main(int argc, char **argv)
 	int width = 1024/2;
 	int height = 768/2;
 	width=height=200;
+	make_window(width, height);
 
 	int *pixels = (int *)malloc(sizeof(int)*width*height);
 
