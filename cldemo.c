@@ -295,8 +295,9 @@ int main(int argc, char **argv)
 		fill_pixels(pixels, width, height, out_r, out_b, out_g);
 
 		glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-
-		printf("Done in %f seconds \n", ((float)(time_after-time_before))/CLOCKS_PER_SEC);
+		float time_diff = ((float)(time_after-time_before))/CLOCKS_PER_SEC;
+		float samps_per_second = (50.0f*4*width*height)/time_diff;
+		printf("Done in %f seconds at a rate of %fK samples per second \n",time_diff, samps_per_second/1000);
 		save_to_file(width, height, out_r, out_g, out_b);
 		// Swap buffers
 		glfwSwapBuffers();
