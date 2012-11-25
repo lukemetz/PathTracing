@@ -21,7 +21,7 @@
  */
 
 #include <CL/cl.h>
-
+#include <time.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -167,14 +167,6 @@
 	//inputs are for the path_trace function of the kernel
  	kernel = CL_CHECK_ERR(clCreateKernel(program, "path_trace", &_err));
 
-	//sets the arguments of path_trace in order
-	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
- 	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
- 	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
- 	CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
- 	CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
- 	CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
-
  	cl_command_queue queue;
  	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
@@ -189,7 +181,18 @@
  	printf("done random calculation \n");
 
  	cl_event kernel_completion;
+	clock_t time_after;
+	clock_t time_before;
+	time_before = clock();
 
+	//sets the arguments of path_trace in order
+
+	CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
+ 	CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
+ 	CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
+ 	CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
+ 	CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
+ 	CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
 
   	//this work group is two dimensional
  	int work_group_size = 1;
@@ -222,9 +225,10 @@
  		CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
  		CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
 	}
+	time_after = clock();
 	CL_CHECK(clReleaseEvent(kernel_completion));
   	//The following junk creates the image
- 	printf("Done 1:");
+ 	printf("Done in %f seconds", ((float)(time_after-time_before))/CLOCKS_PER_SEC);
 
   	//create the ppm file
  	FILE *fout = fopen("image.ppm", "w");
