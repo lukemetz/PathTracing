@@ -72,7 +72,7 @@ int to_int(float val)
 
 char *get_text_from_file(char *filename)
 {
-	FILE *f = fopen("kernel.cl", "rb");
+	FILE *f = fopen(filename, "rb");
 	fseek(f, 0, SEEK_END);
 	long pos = ftell(f);
 	fseek(f, 0, SEEK_SET);
@@ -192,10 +192,6 @@ void save_to_file(int width, int height, float *out_r, float *out_g, float *out_
 
 	//sets width and height of ppm
 	fprintf(fout, "P3\n%d %d\n%d\n", width, height, 255);
-
-	//read the output buffers
-
-
 	//iterate through each pixel
 	for (int i=0; i<width*height; i++) {
 	//appends the next pixel to the ppm file (it knows where in the ppm to put it)
@@ -207,17 +203,11 @@ void fill_pixels(int *pixels, int width, int height, float *out_r, float *out_g,
 {
 	for (int i=0; i < width*height; ++i) {
 		pixels[i] = to_int(out_r[i]) + ( to_int(out_g[i]) << 8 ) + ( to_int(out_b[i]) << 16 );
-		//pixels[i] = 0xbb00aaff;
 	}
 }
 
-int main(int argc, char **argv)
+void print_cl_platforms(cl_platform_id *platforms, int platforms_n)
 {
-
-	cl_platform_id platforms[100];
-	cl_uint platforms_n = 0;
-	CL_CHECK(clGetPlatformIDs(100, platforms, &platforms_n));
-
 	printf("=== %d OpenCL platform(s) found: ===\n", platforms_n);
 	for (int i=0; i<platforms_n; i++){
 		char buffer[10240];
@@ -233,16 +223,11 @@ int main(int argc, char **argv)
 		CL_CHECK(clGetPlatformInfo(platforms[i], CL_PLATFORM_EXTENSIONS, 10240, buffer, NULL));
 		printf("  EXTENSIONS = %s\n", buffer);
 	}
+}
 
-	if (platforms_n == 0)
-		return 1;
-
-	cl_device_id devices[100];
-	cl_uint devices_n = 0;
-	// CL_CHECK(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
-	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
-
-	printf("=== %d OpenCL device(s) found on platform:\n", platforms_n);
+void print_cl_devices(cl_device_id *devices, int devices_n)
+{
+	printf("=== %d OpenCL device(s) found on platform:\n", devices_n);
 	for (int i=0; i<devices_n; i++)
 	{
 		char buffer[10240];
@@ -265,17 +250,36 @@ int main(int argc, char **argv)
 		printf("  DEVICE_GLOBAL_MEM_SIZE = %llu\n", (unsigned long long)buf_ulong);
 	}
 
-	if (devices_n == 0)
-		return 1;
+}
 
-	cl_context context;
-	context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
+int main(int argc, char **argv)
+{
+	cl_platform_id platforms[100];
+	cl_uint platforms_n = 0;
+	CL_CHECK(clGetPlatformIDs(100, platforms, &platforms_n));
+
+	print_cl_platforms(platforms, platforms_n);
+
+	if (platforms_n == 0) {
+		fprintf(stderr, "error: No platforms found :(\n");
+		exit(1);
+	}
+
+	cl_device_id devices[100];
+	cl_uint devices_n = 0;
+	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
+
+	print_cl_devices(devices, devices_n);
+	if (devices_n == 0) {
+		fprintf(stderr, "error: No Devices found :(\n");
+		exit(1);
+	}
+
+	cl_context context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
 
 	char *program_source = get_text_from_file("kernel.cl");
 
-	cl_program program;
-
-	program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
+	cl_program program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
 	if (clBuildProgram(program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
 		char buffer[10240];
 		clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
@@ -347,8 +351,7 @@ int main(int argc, char **argv)
 	direction_in[0]=0.0f;
 	direction_in[1]=-.042612f;
 	direction_in[2]=-1.0f;
-	do
-	{
+	do {
 		navigation(origin_in, direction_in);
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
