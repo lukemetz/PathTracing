@@ -88,11 +88,6 @@ void make_window(int width, int height)
 	    fprintf( stderr, "Failed to initialize GLFW\n" );
 	    exit(-1);
 	}
-	//glfwOpenWindowHint(GLFW_FSAA_SAMPLES, 4); // 4x antialiasing
-	//glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3); // We want OpenGL 3.3
-	//glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 3);
-	//glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE); //We don't want the old OpenGL
-
 	// Open a window and create its OpenGL context
 	if( !glfwOpenWindow(width, height, 0,0,0,0, 32,0, GLFW_WINDOW ) )
 	{
@@ -106,6 +101,7 @@ void make_window(int width, int height)
 	    exit(-1);
 	}
 	glfwSetWindowTitle("PathTracer" );
+	glfwEnable( GLFW_STICKY_KEYS );
 }
 
 void navigation(float *origin, float *direction)
@@ -332,8 +328,6 @@ int main(int argc, char **argv)
 	printf("done random calculation \n");
 
 	cl_event kernel_completion;
-	glfwEnable( GLFW_STICKY_KEYS );
-
 
 	//this work group is two dimensional
 	int work_group_size = 1;
@@ -345,10 +339,6 @@ int main(int argc, char **argv)
 
 	float *origin_in=(float *)malloc(sizeof(float)*3);
 	float *direction_in=(float *)malloc(sizeof(float)*3);
-
-	//float3 origin = {50.0f, 52.0f, 295.6f};
-	//float3 direction = {0.0f, -.042612f, -1.0f};
-
 
 	origin_in[0]=50.0f;
 	origin_in[1]=52.0f;
@@ -381,19 +371,17 @@ int main(int argc, char **argv)
 		int batches = (width*height)/MAX_WORKGROUP+1;
 		for(int i=0; i < batches; ++i) {
 			size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
+			//Fix evenly divisible MAX_WORKGROUPs
 			if(workgroup_amount <= 0)
 				break;
 
 			size_t global_work_size[1] = { workgroup_amount };
-			//this creates the work group
 			int offset = i*MAX_WORKGROUP;
 			CL_CHECK(clSetKernelArg(kernel, 6, sizeof(offset), &offset));
 			printf("running %d / %d \n", i, batches);
 		 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
 			//kernel either runs when you call clWaitForEvents (below) or it runs when you call
-			//clEnqueueNDRangeKernel (above), we are not really sure.
 		 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
-		 	//printf("releasing \n");
 
 			CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
 			CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
