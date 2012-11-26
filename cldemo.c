@@ -214,6 +214,9 @@ int main(int argc, char **argv)
 	cl_mem output_r;
 	cl_mem output_g;
 	cl_mem output_b;
+
+	cl_mem input_origin;
+	cl_mem input_dir;
 	#define MAX_WORKGROUP 10000//(1048576/2) //2^20
 
 	random_seeds = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
@@ -221,6 +224,8 @@ int main(int argc, char **argv)
 	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
 	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
 
+	input_origin = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+	input_dir = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
 
 	//create an instance of the kernel
 	cl_kernel kernel;
@@ -239,10 +244,36 @@ int main(int argc, char **argv)
 		seed = rand();//seed*mult;
 		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
 	}
+	
 	printf("done random calculation \n");
 
 	cl_event kernel_completion;
 	glfwEnable( GLFW_STICKY_KEYS );
+
+
+	//this work group is two dimensional
+	int work_group_size = 1;
+	//the actual size of the work group is widthxheight
+	size_t total_size = width*height*sizeof(float);
+	float *out_r = (float *)malloc(total_size);
+	float *out_g = (float *)malloc(total_size);
+	float *out_b = (float *)malloc(total_size);
+
+	float *origin_in=(float *)malloc(sizeof(float)*3);
+	float *direction_in=(float *)malloc(sizeof(float)*3);
+
+	//float3 origin = {50.0f, 52.0f, 295.6f};
+	//float3 direction = {0.0f, -.042612f, -1.0f};
+	origin_in[0]=50.0f;
+	origin_in[1]=52.0f;
+	origin_in[2]=295.6f;
+
+	direction_in[0]=0.0f;
+	direction_in[1]=-.042612f;
+	direction_in[2]=-1.0f;
+
+	CL_CHECK(clEnqueueWriteBuffer(queue, input_origin, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
+	CL_CHECK(clEnqueueWriteBuffer(queue, input_dir, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
 	do{
 		clock_t time_after;
 		clock_t time_before;
@@ -256,14 +287,14 @@ int main(int argc, char **argv)
 		CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
 		CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
 		CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
+		
+		printf("num args %d \n", CL_DEVICE_MAX_CONSTANT_ARGS);
+		CL_CHECK(clSetKernelArg(kernel, 7, sizeof(input_origin), &input_origin));
+		CL_CHECK(clSetKernelArg(kernel, 8, sizeof(input_dir), &input_dir));
 
-		//this work group is two dimensional
-		int work_group_size = 1;
-		//the actual size of the work group is widthxheight
-		size_t total_size = width*height*sizeof(float);
-		float *out_r = (float *)malloc(total_size);
-		float *out_g = (float *)malloc(total_size);
-		float *out_b = (float *)malloc(total_size);
+
+
+		
 		for(int i=0; i < (width*height)/MAX_WORKGROUP+1; ++i) {
 			size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
 			printf("%d \n", (int)workgroup_amount);
@@ -286,6 +317,8 @@ int main(int argc, char **argv)
 			CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
 			CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
 			CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
+
+
 		}
 		time_after = clock();
 		glClear(GL_COLOR_BUFFER_BIT);

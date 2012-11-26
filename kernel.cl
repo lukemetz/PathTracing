@@ -181,15 +181,18 @@ __kernel void path_trace(__global int *seeds,
                         __global float *out_b,
                         int width,
                         int height,
-                        int offset
+                        int offset,
+			__global float *origin_in,
+			__global float *direction_in
                         )
 {
 
   //defines camera position
-  float3 origin = {50.0f, 52.0f, 295.6f};
-
+  //float3 origin = {50.0f, 52.0f, 295.6f};
+  float3 origin = {origin_in[0], origin_in[1], origin_in[2]};
   //defines camera direction
-  float3 direction = {0.0f, -.042612f, -1.0f};
+  //float3 direction = {0.0f, -.042612f, -1.0f};
+  float3 direction = {direction_in[0], direction_in[1], direction_in[2]};
 
   //defines camera vector
   Ray cam = {origin, normalize(direction)};
