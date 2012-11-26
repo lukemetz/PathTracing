@@ -70,6 +70,17 @@ int to_int(float val)
 	return (int) (pow(clamp(val),1/2.2)*255+.5);
 }
 
+char *get_text_from_file(char *filename)
+{
+	FILE *f = fopen("kernel.cl", "rb");
+	fseek(f, 0, SEEK_END);
+	long pos = ftell(f);
+	fseek(f, 0, SEEK_SET);
+	char *program_source = malloc(pos);
+	fread(program_source, pos, 1, f);
+	fclose(f);
+	return program_source;
+}
 
 void make_window(int width, int height)
 {
@@ -233,7 +244,7 @@ int main(int argc, char **argv)
 	cl_device_id devices[100];
 	cl_uint devices_n = 0;
 	// CL_CHECK(clGetDeviceIDs(NULL, CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
-	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_GPU, 100, devices, &devices_n));
+	CL_CHECK(clGetDeviceIDs(platforms[0], CL_DEVICE_TYPE_ALL, 100, devices, &devices_n));
 
 	printf("=== %d OpenCL device(s) found on platform:\n", platforms_n);
 	for (int i=0; i<devices_n; i++)
@@ -264,14 +275,7 @@ int main(int argc, char **argv)
 	cl_context context;
 	context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
 
-	//dumps contents of kernel.cl into a string (don't need to edit this)
-	FILE *f = fopen("kernel.cl", "rb");
-	fseek(f, 0, SEEK_END);
-	long pos = ftell(f);
-	fseek(f, 0, SEEK_SET);
-	char *program_source = malloc(pos);
-	fread(program_source, pos, 1, f);
-	fclose(f);
+	char *program_source = get_text_from_file("kernel.cl");
 
 	cl_program program;
 
@@ -298,7 +302,7 @@ int main(int argc, char **argv)
 
 	cl_mem input_origin;
 	cl_mem input_dir;
-	#define MAX_WORKGROUP 10000//(1048576/2) //2^20
+	#define MAX_WORKGROUP 10000
 
 	random_seeds = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
 	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
@@ -318,8 +322,7 @@ int main(int argc, char **argv)
 	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
 	//set up random seeds buffer
-	//unsigned int mult = 2654435761U;
-	unsigned int seed = 123456778;
+	unsigned int seed;
 	printf("calculating random seeds \n");
 	for (int i=0; i < MAX_WORKGROUP; ++i) {
 		seed = rand();//seed*mult;
@@ -365,7 +368,6 @@ int main(int argc, char **argv)
 		time_before = clock();
 
 		//sets the arguments of path_trace in order
-
 		CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
 		CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
 		CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
@@ -373,25 +375,21 @@ int main(int argc, char **argv)
 		CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
 		CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
 
-		printf("num args %d \n", CL_DEVICE_MAX_CONSTANT_ARGS);
 		CL_CHECK(clSetKernelArg(kernel, 7, sizeof(input_origin), &input_origin));
 		CL_CHECK(clSetKernelArg(kernel, 8, sizeof(input_dir), &input_dir));
 
-
-		for(int i=0; i < (width*height)/MAX_WORKGROUP+1; ++i) {
+		int batches = (width*height)/MAX_WORKGROUP+1;
+		for(int i=0; i < batches; ++i) {
 			size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
-			printf("%d \n", (int)workgroup_amount);
 			if(workgroup_amount <= 0)
 				break;
 
 			size_t global_work_size[1] = { workgroup_amount };
 			//this creates the work group
-			fprintf(stderr, "enqueueing \n");
 			int offset = i*MAX_WORKGROUP;
 			CL_CHECK(clSetKernelArg(kernel, 6, sizeof(offset), &offset));
-
+			printf("running %d / %d \n", i, batches);
 		 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
-		 	fprintf(stderr,"waiting \n");
 			//kernel either runs when you call clWaitForEvents (below) or it runs when you call
 			//clEnqueueNDRangeKernel (above), we are not really sure.
 		 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
@@ -413,7 +411,7 @@ int main(int argc, char **argv)
 		float samps_per_second = (50.0f*4*width*height)/time_diff;
 		printf("Done in %f seconds at a rate of %fK samples per second \n",time_diff, samps_per_second/1000);
 		//save_to_file(width, height, out_r, out_g, out_b);
-		// Swap buffers
+
 		glfwSwapBuffers();
 	} // Check if the ESC key was pressed or the window was closed
 	while( glfwGetKey( GLFW_KEY_ESC ) != GLFW_PRESS && glfwGetWindowParam( GLFW_OPENED ) );
