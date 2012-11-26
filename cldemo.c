@@ -97,6 +97,87 @@ void make_window(int width, int height)
 	glfwSetWindowTitle("PathTracer" );
 }
 
+void navigation(float *origin, float *direction)
+{
+	bool up_press;
+	bool down_press;
+	bool left_press;
+	bool right_press;
+  	bool space_press;
+	bool tab_press;
+	bool W_press;
+	bool S_press;
+	bool A_press;
+	bool D_press;
+	bool Q_press;
+	bool E_press;
+
+	up_press = glfwGetKey( GLFW_KEY_UP ) == GLFW_PRESS;
+	down_press = glfwGetKey( GLFW_KEY_DOWN ) == GLFW_PRESS;
+	left_press = glfwGetKey( GLFW_KEY_LEFT ) == GLFW_PRESS;
+	right_press = glfwGetKey( GLFW_KEY_RIGHT ) == GLFW_PRESS;
+	space_press = glfwGetKey( GLFW_KEY_SPACE ) == GLFW_PRESS;
+	tab_press = glfwGetKey( GLFW_KEY_TAB ) == GLFW_PRESS;
+
+	W_press = glfwGetKey( 'W' ) == GLFW_PRESS;
+	S_press = glfwGetKey( 'S' ) == GLFW_PRESS;
+	A_press = glfwGetKey( 'A' ) == GLFW_PRESS;
+	D_press = glfwGetKey( 'D' ) == GLFW_PRESS;
+	Q_press = glfwGetKey( 'Q' ) == GLFW_PRESS;
+	E_press = glfwGetKey( 'E' ) == GLFW_PRESS;
+
+	if(up_press)
+	{
+			origin[1]=origin[1]+1.0f;
+	}
+	if(down_press)
+	{
+			origin[1]=origin[1]-1.0f;
+	}
+	if(left_press)
+	{
+			origin[0]=origin[0]-1.0f;
+	}
+	if(right_press)
+	{
+			origin[0]=origin[0]+1.0f;
+	}
+	if(space_press)
+	{
+			origin[2]=origin[2]+1.0f;
+	}
+	if(tab_press)
+	{
+			origin[2]=origin[2]-1.0f;
+	}
+
+
+	if(W_press)
+	{
+			direction[1]=direction[1]+.01f;
+	}
+	if(S_press)
+	{
+			direction[1]=direction[1]-.01f;
+	}
+	if(A_press)
+	{
+			direction[0]=direction[0]-.01f;
+	}
+	if(D_press)
+	{
+			direction[0]=direction[0]+.01f;
+	}
+	if(Q_press)
+	{
+			direction[2]=direction[2]+.01f;
+	}
+	if(E_press)
+	{
+			direction[2]=direction[2]-.01f;
+	}
+}
+
 void save_to_file(int width, int height, float *out_r, float *out_g, float *out_b)
 {
 	//create the ppm file
@@ -244,7 +325,7 @@ int main(int argc, char **argv)
 		seed = rand();//seed*mult;
 		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
 	}
-	
+
 	printf("done random calculation \n");
 
 	cl_event kernel_completion;
@@ -264,8 +345,8 @@ int main(int argc, char **argv)
 
 	//float3 origin = {50.0f, 52.0f, 295.6f};
 	//float3 direction = {0.0f, -.042612f, -1.0f};
-	
-	
+
+
 	origin_in[0]=50.0f;
 	origin_in[1]=52.0f;
 	origin_in[2]=295.6f;
@@ -273,95 +354,12 @@ int main(int argc, char **argv)
 	direction_in[0]=0.0f;
 	direction_in[1]=-.042612f;
 	direction_in[2]=-1.0f;
-  
-
-	bool up_press;
-	bool down_press;
-	bool left_press;
-	bool right_press;
-  bool space_press;
-	bool tab_press;
-	bool W_press;
-	bool S_press;
-	bool A_press;
-	bool D_press;
-	bool Q_press;
-	bool E_press;
-	do{
-
-		up_press=glfwGetKey( GLFW_KEY_UP ) == GLFW_PRESS;
-		down_press=glfwGetKey( GLFW_KEY_DOWN ) == GLFW_PRESS;
-		left_press=glfwGetKey( GLFW_KEY_LEFT ) == GLFW_PRESS;
-		right_press=glfwGetKey( GLFW_KEY_RIGHT ) == GLFW_PRESS;
-		space_press=glfwGetKey( GLFW_KEY_SPACE ) == GLFW_PRESS;
-		tab_press=glfwGetKey( GLFW_KEY_TAB ) == GLFW_PRESS;
-
-		W_press=glfwGetKey( 'W' ) == GLFW_PRESS;
-		S_press=glfwGetKey( 'S' ) == GLFW_PRESS;
-		A_press=glfwGetKey( 'A' ) == GLFW_PRESS;
-		D_press=glfwGetKey( 'D' ) == GLFW_PRESS;
-		Q_press=glfwGetKey( 'Q' ) == GLFW_PRESS;
-		E_press=glfwGetKey( 'E' ) == GLFW_PRESS;
-
-		//float3 origin = {50.0f, 52.0f, 295.6f};
-		//float3 direction = {0.0f, -.042612f, -1.0f};
-		
-		if(up_press)
-		{
-				origin_in[1]=origin_in[1]+1.0f;
-		}
-		if(down_press)
-		{
-				origin_in[1]=origin_in[1]-1.0f;
-		}
-		if(left_press)
-		{
-				origin_in[0]=origin_in[0]-1.0f;
-		}
-		if(right_press)
-		{
-				origin_in[0]=origin_in[0]+1.0f;
-		}
-		if(space_press)
-		{
-				origin_in[2]=origin_in[2]+1.0f;
-		}
-		if(tab_press)
-		{
-				origin_in[2]=origin_in[2]-1.0f;
-		}
-
-
-		if(W_press)
-		{
-				direction_in[1]=direction_in[1]+.01f;
-		}
-		if(S_press)
-		{
-				direction_in[1]=direction_in[1]-.01f;
-		}
-		if(A_press)
-		{
-				direction_in[0]=direction_in[0]-.01f;
-		}
-		if(D_press)
-		{
-				direction_in[0]=direction_in[0]+.01f;
-		}
-		if(Q_press)
-		{
-				direction_in[2]=direction_in[2]+.01f;
-		}
-		if(E_press)
-		{
-				direction_in[2]=direction_in[2]-.01f;
-		}
-		
-
-
+	do
+	{
+		navigation(origin_in, direction_in);
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
-		
+
 		clock_t time_after;
 		clock_t time_before;
 		time_before = clock();
@@ -374,14 +372,12 @@ int main(int argc, char **argv)
 		CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
 		CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
 		CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
-		
+
 		printf("num args %d \n", CL_DEVICE_MAX_CONSTANT_ARGS);
 		CL_CHECK(clSetKernelArg(kernel, 7, sizeof(input_origin), &input_origin));
 		CL_CHECK(clSetKernelArg(kernel, 8, sizeof(input_dir), &input_dir));
 
 
-
-		
 		for(int i=0; i < (width*height)/MAX_WORKGROUP+1; ++i) {
 			size_t workgroup_amount = min(width*height-i*MAX_WORKGROUP, MAX_WORKGROUP);
 			printf("%d \n", (int)workgroup_amount);
@@ -404,8 +400,6 @@ int main(int argc, char **argv)
 			CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
 			CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
 			CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
-
-
 		}
 		time_after = clock();
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -418,7 +412,7 @@ int main(int argc, char **argv)
 		float time_diff = ((float)(time_after-time_before))/CLOCKS_PER_SEC;
 		float samps_per_second = (50.0f*4*width*height)/time_diff;
 		printf("Done in %f seconds at a rate of %fK samples per second \n",time_diff, samps_per_second/1000);
-		save_to_file(width, height, out_r, out_g, out_b);
+		//save_to_file(width, height, out_r, out_g, out_b);
 		// Swap buffers
 		glfwSwapBuffers();
 	} // Check if the ESC key was pressed or the window was closed
