@@ -31,7 +31,7 @@
 #include <math.h>
 #include <GL/glew.h>
 #include <GL/glfw.h>
-
+#include <stdbool.h>
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -205,7 +205,7 @@ int main(int argc, char **argv)
 
 	int width = 1024/2;
 	int height = 768/2;
-	width=height=200;
+	width=height=100;
 	make_window(width, height);
 
 	int *pixels = (int *)malloc(sizeof(int)*width*height);
@@ -264,6 +264,8 @@ int main(int argc, char **argv)
 
 	//float3 origin = {50.0f, 52.0f, 295.6f};
 	//float3 direction = {0.0f, -.042612f, -1.0f};
+	
+	
 	origin_in[0]=50.0f;
 	origin_in[1]=52.0f;
 	origin_in[2]=295.6f;
@@ -271,10 +273,95 @@ int main(int argc, char **argv)
 	direction_in[0]=0.0f;
 	direction_in[1]=-.042612f;
 	direction_in[2]=-1.0f;
+  
 
-	CL_CHECK(clEnqueueWriteBuffer(queue, input_origin, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
-	CL_CHECK(clEnqueueWriteBuffer(queue, input_dir, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
+	bool up_press;
+	bool down_press;
+	bool left_press;
+	bool right_press;
+  bool space_press;
+	bool tab_press;
+	bool W_press;
+	bool S_press;
+	bool A_press;
+	bool D_press;
+	bool Q_press;
+	bool E_press;
 	do{
+
+		up_press=glfwGetKey( GLFW_KEY_UP ) == GLFW_PRESS;
+		down_press=glfwGetKey( GLFW_KEY_DOWN ) == GLFW_PRESS;
+		left_press=glfwGetKey( GLFW_KEY_LEFT ) == GLFW_PRESS;
+		right_press=glfwGetKey( GLFW_KEY_RIGHT ) == GLFW_PRESS;
+		space_press=glfwGetKey( GLFW_KEY_SPACE ) == GLFW_PRESS;
+		tab_press=glfwGetKey( GLFW_KEY_TAB ) == GLFW_PRESS;
+
+		W_press=glfwGetKey( 'W' ) == GLFW_PRESS;
+		S_press=glfwGetKey( 'S' ) == GLFW_PRESS;
+		A_press=glfwGetKey( 'A' ) == GLFW_PRESS;
+		D_press=glfwGetKey( 'D' ) == GLFW_PRESS;
+		Q_press=glfwGetKey( 'Q' ) == GLFW_PRESS;
+		E_press=glfwGetKey( 'E' ) == GLFW_PRESS;
+
+		//float3 origin = {50.0f, 52.0f, 295.6f};
+		//float3 direction = {0.0f, -.042612f, -1.0f};
+		
+		if(up_press)
+		{
+				origin_in[1]=origin_in[1]+1.0f;
+		}
+		if(down_press)
+		{
+				origin_in[1]=origin_in[1]-1.0f;
+		}
+		if(left_press)
+		{
+				origin_in[0]=origin_in[0]-1.0f;
+		}
+		if(right_press)
+		{
+				origin_in[0]=origin_in[0]+1.0f;
+		}
+		if(space_press)
+		{
+				origin_in[2]=origin_in[2]+1.0f;
+		}
+		if(tab_press)
+		{
+				origin_in[2]=origin_in[2]-1.0f;
+		}
+
+
+		if(W_press)
+		{
+				direction_in[1]=direction_in[1]+.01f;
+		}
+		if(S_press)
+		{
+				direction_in[1]=direction_in[1]-.01f;
+		}
+		if(A_press)
+		{
+				direction_in[0]=direction_in[0]-.01f;
+		}
+		if(D_press)
+		{
+				direction_in[0]=direction_in[0]+.01f;
+		}
+		if(Q_press)
+		{
+				direction_in[2]=direction_in[2]+.01f;
+		}
+		if(E_press)
+		{
+				direction_in[2]=direction_in[2]-.01f;
+		}
+		
+
+
+		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
+		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
+		
 		clock_t time_after;
 		clock_t time_before;
 		time_before = clock();

@@ -209,7 +209,7 @@ __kernel void path_trace(__global int *seeds,
  // float3 crss = {cx.x*cam.direction.z-cx.z*cam.direction.y,cx.z*cam.direction.x-cx.x*cam.direction.z,cx.x*cam.direction.y-cx.y*cam.direction.x};
   float3 cy = normalize(cross(cx, cam.direction)) * .5135f;
   //number of samples being run for the pixel
-  int samps = 50;
+  int samps = 5;
   float3 final_radiance = 0;
 
   //pixel is a position in the pixel array
