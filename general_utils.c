@@ -17,7 +17,7 @@ char *get_text_from_file(char *filename)
 	long pos = ftell(f);
 	fseek(f, 0, SEEK_SET);
 	char *program_source = malloc(pos);
-	fread(program_source, pos, 1, f);
+	fread(program_source, pos-1, 1, f);
 	fclose(f);
 	return program_source;
 }
