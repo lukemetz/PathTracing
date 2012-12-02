@@ -57,7 +57,6 @@ void pfn_notify(const char *errinfo, const void *private_info, size_t cb, void *
 }
 
 
-
 void print_cl_platforms(cl_platform_id *platforms, int platforms_n)
 {
 	printf("=== %d OpenCL platform(s) found: ===\n", platforms_n);
@@ -120,7 +119,6 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 	free(program_source);
 }
 
-
 int main(int argc, char **argv)
 {
 	cl_platform_id platforms[100];
@@ -159,20 +157,36 @@ int main(int argc, char **argv)
 	int width = 1024/2;
 	int height = 768/2;
 	width=height=100;
+	float blend_amount = 0.5f;
 	make_window(width, height);
+
+	//the actual size of the work group is widthxheight
+	size_t total_size = width*height*sizeof(float);
 
 	int *pixels = (int *)malloc(sizeof(int)*width*height);
 
 	#define MAX_WORKGROUP 10000
+	//Buffers for path_tracing
+	cl_mem output_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem output_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem output_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem random_seeds_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem input_origin_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+	cl_mem input_dir_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
 
-	cl_mem random_seeds_buf random_seeds_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
-	cl_mem output_r_buf output_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	cl_mem output_g_buf output_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	cl_mem output_b_buf output_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	cl_mem input_origin_buf = input_origin_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
-	cl_mem input_dir_buf input_dir_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+
 	cl_command_queue queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
+	//Buffers for blending
+	cl_mem prev_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem prev_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem prev_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem current_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem current_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem current_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem full_output_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem full_output_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*total_size, NULL, &_err));
+	cl_mem full_output_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*total_size, NULL, &_err));
 	//set up random seeds buffer
 	unsigned int seed;
 	printf("calculating random seeds \n");
@@ -187,11 +201,13 @@ int main(int argc, char **argv)
 
 	//this work group is two dimensional
 	int work_group_size = 1;
-	//the actual size of the work group is widthxheight
-	size_t total_size = width*height*sizeof(float);
-	float *out_r = (float *)malloc(total_size);
-	float *out_g = (float *)malloc(total_size);
-	float *out_b = (float *)malloc(total_size);
+	float *out_r = (float *)calloc(total_size, sizeof(float));
+	float *out_g = (float *)calloc(total_size, sizeof(float));
+	float *out_b = (float *)calloc(total_size, sizeof(float));
+
+	float *prev_r = (float *)calloc(total_size, sizeof(float));
+	float *prev_g = (float *)calloc(total_size, sizeof(float));
+	float *prev_b = (float *)calloc(total_size, sizeof(float));
 
 	float *origin_in=(float *)malloc(sizeof(float)*3);
 	float *direction_in=(float *)malloc(sizeof(float)*3);
@@ -243,6 +259,47 @@ int main(int argc, char **argv)
 			CL_CHECK(clEnqueueReadBuffer(queue, output_g_buf, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
 			CL_CHECK(clEnqueueReadBuffer(queue, output_b_buf, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
 		}
+		//Done with path tracing
+		printf("Done with tracing \n");
+		//Set up blend input buffers
+		CL_CHECK(clEnqueueWriteBuffer(queue, prev_r_buf, CL_TRUE, 0, total_size*sizeof(float), prev_r, 0, NULL, NULL));
+				printf("buffer1 set \n");
+
+		CL_CHECK(clEnqueueWriteBuffer(queue, prev_g_buf, CL_TRUE, 0, total_size*sizeof(float), prev_g, 0, NULL, NULL));
+				printf("buffer2 set \n");
+		CL_CHECK(clEnqueueWriteBuffer(queue, prev_b_buf, CL_TRUE, 0, total_size*sizeof(float), prev_b, 0, NULL, NULL));
+
+		CL_CHECK(clEnqueueWriteBuffer(queue, current_r_buf, CL_TRUE, 0, total_size*sizeof(float), out_r, 0, NULL, NULL));
+		CL_CHECK(clEnqueueWriteBuffer(queue, current_g_buf, CL_TRUE, 0, total_size*sizeof(float), out_g, 0, NULL, NULL));
+		CL_CHECK(clEnqueueWriteBuffer(queue, current_b_buf, CL_TRUE, 0, total_size*sizeof(float), out_b, 0, NULL, NULL));
+
+		printf("setup buffers \n");
+		CL_CHECK(clSetKernelArg(blend_kernel, 0, sizeof(full_output_r_buf), &full_output_r_buf));
+
+		CL_CHECK(clSetKernelArg(blend_kernel, 1, sizeof(full_output_g_buf), &full_output_g_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 2, sizeof(full_output_b_buf), &full_output_b_buf));
+
+		CL_CHECK(clSetKernelArg(blend_kernel, 3, sizeof(prev_r_buf), &prev_r_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 4, sizeof(prev_g_buf), &prev_g_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 5, sizeof(prev_b_buf), &prev_b_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 6, sizeof(current_r_buf), &current_r_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 7, sizeof(current_g_buf), &current_g_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 8, sizeof(current_b_buf), &current_b_buf));
+		CL_CHECK(clSetKernelArg(blend_kernel, 9, sizeof(width), &width));
+		CL_CHECK(clSetKernelArg(blend_kernel, 10, sizeof(height), &height));
+		CL_CHECK(clSetKernelArg(blend_kernel, 11, sizeof(blend_amount), &blend_amount));
+
+		//Run the kernel
+		printf("running blend \n");
+		size_t global_work_size[1] = { total_size };
+		CL_CHECK(clEnqueueNDRangeKernel(queue, blend_kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+		//kernel either runs when you call clWaitForEvents (below) or it runs when you call
+		CL_CHECK(clWaitForEvents(1, &kernel_completion));
+
+		CL_CHECK(clEnqueueReadBuffer(queue, full_output_r_buf, CL_TRUE, 0, sizeof(float)*total_size, out_r, 0, NULL, NULL));
+		CL_CHECK(clEnqueueReadBuffer(queue, full_output_g_buf, CL_TRUE, 0, sizeof(float)*total_size, out_g, 0, NULL, NULL));
+		CL_CHECK(clEnqueueReadBuffer(queue, full_output_b_buf, CL_TRUE, 0, sizeof(float)*total_size, out_b, 0, NULL, NULL));
+
 		time_after = clock();
 		glClear(GL_COLOR_BUFFER_BIT);
 
@@ -255,6 +312,13 @@ int main(int argc, char **argv)
 		float samps_per_second = (50.0f*4*width*height)/time_diff;
 		printf("Done in %f seconds at a rate of %fK samples per second \n",time_diff, samps_per_second/1000);
 		//save_to_file(width, height, out_r, out_g, out_b);
+
+		//Save current image to previous
+		for(int i=0; i < total_size; ++i) {
+			prev_r[i] = out_r[i];
+			prev_g[i] = out_g[i];
+			prev_b[i] = out_b[i];
+		}
 
 		glfwSwapBuffers();
 	} // Check if the ESC key was pressed or the window was closed
@@ -277,4 +341,5 @@ int main(int argc, char **argv)
 
 	CL_CHECK(clReleaseContext(context));
 	return 0;
+
 }
