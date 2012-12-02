@@ -104,6 +104,22 @@ void print_cl_devices(cl_device_id *devices, int devices_n)
 
 }
 
+void make_clprogram(cl_program *program, char *file, cl_context *context, cl_device_id *devices)
+{
+	char *program_source = get_text_from_file(file);
+
+	*program = CL_CHECK_ERR(clCreateProgramWithSource(*context, 1, (const char **)&program_source, NULL, &_err));
+	if (clBuildProgram(*program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
+		char buffer[10240];
+		clGetProgramBuildInfo(*program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
+		fprintf(stderr, "CL Compilation failed:\n%s", buffer);
+		abort();
+	}
+	CL_CHECK(clUnloadCompiler());
+	free(program_source);
+}
+
+
 int main(int argc, char **argv)
 {
 	cl_platform_id platforms[100];
@@ -129,16 +145,11 @@ int main(int argc, char **argv)
 
 	cl_context context = CL_CHECK_ERR(clCreateContext(NULL, 1, devices, &pfn_notify, NULL, &_err));
 
-	char *program_source = get_text_from_file("kernel.cl");
 
-	cl_program program = CL_CHECK_ERR(clCreateProgramWithSource(context, 1, (const char **)&program_source, NULL, &_err));
-	if (clBuildProgram(program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
-		char buffer[10240];
-		clGetProgramBuildInfo(program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
-		fprintf(stderr, "CL Compilation failed:\n%s", buffer);
-		abort();
-	}
-	CL_CHECK(clUnloadCompiler());
+	//Set up cl program and kernel
+	cl_program path_trace_program;
+	make_clprogram(&path_trace_program, "kernel.cl", &context, devices);
+	cl_kernel kernel = CL_CHECK_ERR(clCreateKernel(path_trace_program, "path_trace", &_err));
 
 	int width = 1024/2;
 	int height = 768/2;
@@ -160,18 +171,9 @@ int main(int argc, char **argv)
 	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
 	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
 	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-
 	input_origin = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
 	input_dir = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
-
-	//create an instance of the kernel
-	cl_kernel kernel;
-
-	//inputs are for the path_trace function of the kernel
-	kernel = CL_CHECK_ERR(clCreateKernel(program, "path_trace", &_err));
-
-	cl_command_queue queue;
-	queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
+	cl_command_queue queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
 	//set up random seeds buffer
 	unsigned int seed;
@@ -269,8 +271,7 @@ int main(int argc, char **argv)
 	CL_CHECK(clReleaseMemObject(output_b));
 
 	CL_CHECK(clReleaseKernel(kernel));
-	CL_CHECK(clReleaseProgram(program));
+	CL_CHECK(clReleaseProgram(path_trace_program));
 	CL_CHECK(clReleaseContext(context));
-	free(program_source);
 	return 0;
 }
