@@ -163,21 +163,14 @@ int main(int argc, char **argv)
 
 	int *pixels = (int *)malloc(sizeof(int)*width*height);
 
-	cl_mem random_seeds_buf;
-	cl_mem output_r_buf;
-	cl_mem output_g_buf;
-	cl_mem output_b_buf;
-
-	cl_mem input_origin_buf;
-	cl_mem input_dir_buf;
 	#define MAX_WORKGROUP 10000
 
-	random_seeds_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
-	output_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	output_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	output_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	input_origin_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
-	input_dir_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+	cl_mem random_seeds_buf random_seeds_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem output_r_buf output_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem output_g_buf output_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem output_b_buf output_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	cl_mem input_origin_buf = input_origin_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+	cl_mem input_dir_buf input_dir_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
 	cl_command_queue queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
 	//set up random seeds buffer
@@ -210,6 +203,7 @@ int main(int argc, char **argv)
 	direction_in[0]=0.0f;
 	direction_in[1]=-.042612f;
 	direction_in[2]=-1.0f;
+
 	do {
 		navigation(origin_in, direction_in);
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin_buf, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
