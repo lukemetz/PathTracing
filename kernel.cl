@@ -20,7 +20,6 @@ typedef struct
   float3 emission;
   float3 color;
 } Sphere;
-
 //hard code in the scene for now
 __constant Sphere spheres[] = {//Scene: radius, position, emission, color, material
   {1e3,   { 1e3+1,40.8,81.6}, {0,0,0},    {.75,.25,.25}},//Left

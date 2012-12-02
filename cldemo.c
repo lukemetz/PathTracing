@@ -115,7 +115,7 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 		fprintf(stderr, "CL Compilation failed:\n%s", buffer);
 		abort();
 	}
-	CL_CHECK(clUnloadCompiler());
+	//CL_CHECK(clUnloadCompiler()); gives compiler warning but probably need
 	free(program_source);
 }
 
@@ -149,7 +149,11 @@ int main(int argc, char **argv)
 	//Set up cl program and kernel
 	cl_program path_trace_program;
 	make_clprogram(&path_trace_program, "kernel.cl", &context, devices);
-	cl_kernel kernel = CL_CHECK_ERR(clCreateKernel(path_trace_program, "path_trace", &_err));
+	cl_kernel path_kernel = CL_CHECK_ERR(clCreateKernel(path_trace_program, "path_trace", &_err));
+
+	cl_program blend_program;
+	make_clprogram(&blend_program, "blend.cl", &context, devices);
+	cl_kernel blend_kernel = CL_CHECK_ERR(clCreateKernel(blend_program, "blend", &_err));
 
 	int width = 1024/2;
 	int height = 768/2;
@@ -215,15 +219,15 @@ int main(int argc, char **argv)
 		time_before = clock();
 
 		//sets the arguments of path_trace in order
-		CL_CHECK(clSetKernelArg(kernel, 0, sizeof(random_seeds), &random_seeds));
-		CL_CHECK(clSetKernelArg(kernel, 1, sizeof(output_r), &output_r));
-		CL_CHECK(clSetKernelArg(kernel, 2, sizeof(output_g), &output_g));
-		CL_CHECK(clSetKernelArg(kernel, 3, sizeof(output_b), &output_b));
-		CL_CHECK(clSetKernelArg(kernel, 4, sizeof(width), &width));
-		CL_CHECK(clSetKernelArg(kernel, 5, sizeof(height), &height));
+		CL_CHECK(clSetKernelArg(path_kernel, 0, sizeof(random_seeds), &random_seeds));
+		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(output_r), &output_r));
+		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(output_g), &output_g));
+		CL_CHECK(clSetKernelArg(path_kernel, 3, sizeof(output_b), &output_b));
+		CL_CHECK(clSetKernelArg(path_kernel, 4, sizeof(width), &width));
+		CL_CHECK(clSetKernelArg(path_kernel, 5, sizeof(height), &height));
 
-		CL_CHECK(clSetKernelArg(kernel, 7, sizeof(input_origin), &input_origin));
-		CL_CHECK(clSetKernelArg(kernel, 8, sizeof(input_dir), &input_dir));
+		CL_CHECK(clSetKernelArg(path_kernel, 7, sizeof(input_origin), &input_origin));
+		CL_CHECK(clSetKernelArg(path_kernel, 8, sizeof(input_dir), &input_dir));
 
 		int batches = (width*height)/MAX_WORKGROUP+1;
 		for(int i=0; i < batches; ++i) {
@@ -234,9 +238,9 @@ int main(int argc, char **argv)
 
 			size_t global_work_size[1] = { workgroup_amount };
 			int offset = i*MAX_WORKGROUP;
-			CL_CHECK(clSetKernelArg(kernel, 6, sizeof(offset), &offset));
+			CL_CHECK(clSetKernelArg(path_kernel, 6, sizeof(offset), &offset));
 			printf("running %d / %d \n", i, batches);
-		 	CL_CHECK(clEnqueueNDRangeKernel(queue, kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
+		 	CL_CHECK(clEnqueueNDRangeKernel(queue, path_kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
 			//kernel either runs when you call clWaitForEvents (below) or it runs when you call
 		 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
 
@@ -270,8 +274,12 @@ int main(int argc, char **argv)
 	CL_CHECK(clReleaseMemObject(output_g));
 	CL_CHECK(clReleaseMemObject(output_b));
 
-	CL_CHECK(clReleaseKernel(kernel));
+	CL_CHECK(clReleaseKernel(path_kernel));
 	CL_CHECK(clReleaseProgram(path_trace_program));
+
+	CL_CHECK(clReleaseKernel(blend_kernel));
+	CL_CHECK(clReleaseProgram(blend_program));
+
 	CL_CHECK(clReleaseContext(context));
 	return 0;
 }
