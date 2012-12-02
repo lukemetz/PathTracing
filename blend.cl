@@ -19,5 +19,4 @@ __kernel void blend (__global float *out_r,
 	out_r[array_index] = prev_r[array_index] * (1-blend) + current_r[array_index] * (blend);
 	out_g[array_index] = prev_g[array_index] * (1-blend) + current_g[array_index] * (blend);
 	out_b[array_index] = prev_b[array_index] * (1-blend) + current_b[array_index] * (blend);
-
-}
+};

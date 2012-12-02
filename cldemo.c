@@ -109,6 +109,7 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 	char *program_source = get_text_from_file(file);
 
 	*program = CL_CHECK_ERR(clCreateProgramWithSource(*context, 1, (const char **)&program_source, NULL, &_err));
+	printf("Compiling %s \n", file);
 	if (clBuildProgram(*program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
 		char buffer[10240];
 		clGetProgramBuildInfo(*program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
@@ -162,21 +163,21 @@ int main(int argc, char **argv)
 
 	int *pixels = (int *)malloc(sizeof(int)*width*height);
 
-	cl_mem random_seeds;
-	cl_mem output_r;
-	cl_mem output_g;
-	cl_mem output_b;
+	cl_mem random_seeds_buf;
+	cl_mem output_r_buf;
+	cl_mem output_g_buf;
+	cl_mem output_b_buf;
 
-	cl_mem input_origin;
-	cl_mem input_dir;
+	cl_mem input_origin_buf;
+	cl_mem input_dir_buf;
 	#define MAX_WORKGROUP 10000
 
-	random_seeds = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
-	output_r = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	output_g = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	output_b = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
-	input_origin = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
-	input_dir = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+	random_seeds_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
+	output_r_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	output_g_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	output_b_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP, NULL, &_err));
+	input_origin_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
+	input_dir_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(float)*3, NULL, &_err));
 	cl_command_queue queue = CL_CHECK_ERR(clCreateCommandQueue(context, devices[0], 0, &_err));
 
 	//set up random seeds buffer
@@ -184,7 +185,7 @@ int main(int argc, char **argv)
 	printf("calculating random seeds \n");
 	for (int i=0; i < MAX_WORKGROUP; ++i) {
 		seed = rand();//seed*mult;
-		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
+		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds_buf, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
 	}
 
 	printf("done random calculation \n");
@@ -211,23 +212,23 @@ int main(int argc, char **argv)
 	direction_in[2]=-1.0f;
 	do {
 		navigation(origin_in, direction_in);
-		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
-		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
+		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin_buf, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
+		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir_buf, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
 
 		clock_t time_after;
 		clock_t time_before;
 		time_before = clock();
 
 		//sets the arguments of path_trace in order
-		CL_CHECK(clSetKernelArg(path_kernel, 0, sizeof(random_seeds), &random_seeds));
-		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(output_r), &output_r));
-		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(output_g), &output_g));
-		CL_CHECK(clSetKernelArg(path_kernel, 3, sizeof(output_b), &output_b));
+		CL_CHECK(clSetKernelArg(path_kernel, 0, sizeof(random_seeds_buf), &random_seeds_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(output_r_buf), &output_r_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(output_g_buf), &output_g_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 3, sizeof(output_b_buf), &output_b_buf));
 		CL_CHECK(clSetKernelArg(path_kernel, 4, sizeof(width), &width));
 		CL_CHECK(clSetKernelArg(path_kernel, 5, sizeof(height), &height));
 
-		CL_CHECK(clSetKernelArg(path_kernel, 7, sizeof(input_origin), &input_origin));
-		CL_CHECK(clSetKernelArg(path_kernel, 8, sizeof(input_dir), &input_dir));
+		CL_CHECK(clSetKernelArg(path_kernel, 7, sizeof(input_origin_buf), &input_origin_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 8, sizeof(input_dir_buf), &input_dir_buf));
 
 		int batches = (width*height)/MAX_WORKGROUP+1;
 		for(int i=0; i < batches; ++i) {
@@ -244,9 +245,9 @@ int main(int argc, char **argv)
 			//kernel either runs when you call clWaitForEvents (below) or it runs when you call
 		 	CL_CHECK(clWaitForEvents(1, &kernel_completion));
 
-			CL_CHECK(clEnqueueReadBuffer(queue, output_r, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
-			CL_CHECK(clEnqueueReadBuffer(queue, output_g, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
-			CL_CHECK(clEnqueueReadBuffer(queue, output_b, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
+			CL_CHECK(clEnqueueReadBuffer(queue, output_r_buf, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_r+i*MAX_WORKGROUP, 0, NULL, NULL));
+			CL_CHECK(clEnqueueReadBuffer(queue, output_g_buf, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_g+i*MAX_WORKGROUP, 0, NULL, NULL));
+			CL_CHECK(clEnqueueReadBuffer(queue, output_b_buf, CL_TRUE, 0, sizeof(float)*workgroup_amount, out_b+i*MAX_WORKGROUP, 0, NULL, NULL));
 		}
 		time_after = clock();
 		glClear(GL_COLOR_BUFFER_BIT);
@@ -269,10 +270,10 @@ int main(int argc, char **argv)
 
 	//boiler plate stuff, you can ignore it (but don't touch!)
 	printf("\n");
-	CL_CHECK(clReleaseMemObject(random_seeds));
-	CL_CHECK(clReleaseMemObject(output_r));
-	CL_CHECK(clReleaseMemObject(output_g));
-	CL_CHECK(clReleaseMemObject(output_b));
+	CL_CHECK(clReleaseMemObject(random_seeds_buf));
+	CL_CHECK(clReleaseMemObject(output_r_buf));
+	CL_CHECK(clReleaseMemObject(output_g_buf));
+	CL_CHECK(clReleaseMemObject(output_b_buf));
 
 	CL_CHECK(clReleaseKernel(path_kernel));
 	CL_CHECK(clReleaseProgram(path_trace_program));
