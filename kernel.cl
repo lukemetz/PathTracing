@@ -23,15 +23,15 @@ typedef struct
 
 //hard code in the scene for now
 __constant Sphere spheres[] = {//Scene: radius, position, emission, color, material
-  {1e3,   { 1e3+1,40.8,81.6}, {0,0,0},    {.75,.25,.25}},//Left
-  {1e3,   {-1e3+99,40.8,81.6},{0,0,0},    {.25,.25,.75}},//Rght
+  {1e3,   { 1e3+1,40.8,81.6}, {0.1,0,0},    {.75,.25,.25}},//Left
+  {1e3,   {-1e3+99,40.8,81.6},{0,0.1,0},    {.25,.25,.75}},//Rght
   {1e3,   {50,40.8, 1e3},     {0,0,0},    {.75,.75,.75}},//Back
   {1e3,   {50,40.8,-1e3+170}, {0,0,0},    {0,0,0}},//Frnt
   {1e3,   {50, 1e3, 81.6},    {0,0,0},    {.75,.75,.75}},//Botm
-  {1e3,   {50,-1e3+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
+  {1,   {50,-1e3+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
   {16.5,  {27,16.5,47},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
   {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
-  {600,   {50,681.6-.27,81.6},{12,12,12}, {0,0,0}} //Lite
+  {600,   {50,681.6-.27,81.6},{1.5,1.5,1.5}, {0,0,0}} //Lite
 };
 
 
@@ -71,6 +71,8 @@ inline float2 tent_distribution(unsigned int *seed)
   }
   return ret;
 }
+
+
 inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 {
   float3 op = sphere->position - ray->origin; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
