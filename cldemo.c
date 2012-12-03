@@ -121,6 +121,7 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 
 int main(int argc, char **argv)
 {
+	bool debug = true;
 	cl_platform_id platforms[100];
 	cl_uint platforms_n = 0;
 	CL_CHECK(clGetPlatformIDs(100, platforms, &platforms_n));
@@ -156,9 +157,13 @@ int main(int argc, char **argv)
 
 	int width = 1024/2;
 	int height = 768/2;
-	width=height=100;
+	//width=height=100;
 	float blend_amount = 0.5f;
-	make_window(width, height);
+	if (debug) {
+		make_window(width*2, height);
+	} else {
+		make_window(width, height);
+	}
 
 	//the actual size of the work group is widthxheight
 	size_t total_size = width*height*sizeof(float);
@@ -261,6 +266,13 @@ int main(int argc, char **argv)
 		}
 		//Done with path tracing
 		printf("Done with tracing \n");
+		glClear(GL_COLOR_BUFFER_BIT);
+		//move to center self in screen
+		if (debug) {
+			glRasterPos2i(0,-1);
+			fill_pixels(pixels, width, height, out_r, out_g, out_b);
+			glDrawPixels(width, height, GL_RGBA,  GL_UNSIGNED_BYTE, pixels);
+		}
 		//Set up blend input buffers
 		CL_CHECK(clEnqueueWriteBuffer(queue, prev_r_buf, CL_TRUE, 0, total_size*sizeof(float), prev_r, 0, NULL, NULL));
 				printf("buffer1 set \n");
@@ -301,13 +313,11 @@ int main(int argc, char **argv)
 		CL_CHECK(clEnqueueReadBuffer(queue, full_output_b_buf, CL_TRUE, 0, sizeof(float)*total_size, out_b, 0, NULL, NULL));
 
 		time_after = clock();
-		glClear(GL_COLOR_BUFFER_BIT);
 
-		//move to center self in screen
 		glRasterPos2i(-1,-1);
-		fill_pixels(pixels, width, height, out_r, out_b, out_g);
+		fill_pixels(pixels, width, height, out_r, out_g, out_b);
+		glDrawPixels(width, height, GL_RGBA,  GL_UNSIGNED_BYTE, pixels);
 
-		glDrawPixels(width, height, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
 		float time_diff = ((float)(time_after-time_before))/CLOCKS_PER_SEC;
 		float samps_per_second = (50.0f*4*width*height)/time_diff;
 		printf("Done in %f seconds at a rate of %fK samples per second \n",time_diff, samps_per_second/1000);
