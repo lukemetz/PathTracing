@@ -219,15 +219,15 @@ int main(int argc, char **argv)
 		navigation(origin_in, direction_in);
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin_buf, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir_buf, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
-		seed_offset++;
+		seed_offset += 300;
 		clock_t time_after;
 		clock_t time_before;
 		time_before = clock();
 
 		//sets the arguments of path_trace in order
 		CL_CHECK(clSetKernelArg(path_kernel, 0, sizeof(random_seeds_buf), &random_seeds_buf));
-		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(seed_offset), &seed_offset));
-		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(seeds_size), &seeds_size));
+		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(seeds_size), &seeds_size));
+		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(seed_offset), &seed_offset));
 		CL_CHECK(clSetKernelArg(path_kernel, 3, sizeof(output_buf), &output_buf));
 		CL_CHECK(clSetKernelArg(path_kernel, 4, sizeof(width), &width));
 		CL_CHECK(clSetKernelArg(path_kernel, 5, sizeof(height), &height));

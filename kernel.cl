@@ -74,14 +74,19 @@ inline float2 tent_distribution(unsigned int *seed)
 }
 
 
+
 inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 {
   float3 op = sphere->position - ray->origin; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
   float eps = 1e-2;
   float b = dot(ray->direction, op);
 
-  //float det = b * b - dot(op, op) + sphere->radius * sphere->radius;
-  double det = (double)b * b - (double)dot(op, op) + (double) sphere->radius * sphere->radius;
+  float det = b * b - dot(op, op) + sphere->radius * sphere->radius;
+  //double det = (double)b * b - (double)dot(op, op) + (double) sphere->radius * sphere->radius; 
+  //Think about doing a check to check the sanity of the det. If its like way to big, then return inf and ignore.
+  //Check with like det (dist squared) squared. Check det squared with reference 
+  //Det with old distance cubed
+  //NOTE Have to add one before squaring
   if (det > 0) {
     det = sqrt(det);
     float t = b-det;
@@ -102,7 +107,7 @@ inline bool intersect(Ray *ray, float *t, int *id, int oldID)
   float inf = 1e20;
   *t = inf;
   for(int i=0; n > i; ++i) {
-    if (i != oldID) {
+    if (i != oldID) { //CHECK HERE if object CAN self intersect, transparent obj for example.
       float d = sphere_intersect_ray(&(spheres[i]), ray);
       if ( d != 0 && d < (*t)) {
         (*t) = d;
@@ -224,8 +229,8 @@ __kernel void path_trace(__global int *seeds,
  // float3 crss = {cx.x*cam.direction.z-cx.z*cam.direction.y,cx.z*cam.direction.x-cx.x*cam.direction.z,cx.x*cam.direction.y-cx.y*cam.direction.x};
   float3 cy = normalize(cross(cx, cam.direction)) * .5135f;
   //number of samples being run for the pixel
-  //int samps = 5;
-  int samps = 20;
+  int samps = 5;
+  //int samps = 20;
   float3 final_radiance = 0;
 
   //pixel is a position in the pixel array
