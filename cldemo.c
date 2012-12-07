@@ -157,7 +157,7 @@ int main(int argc, char **argv)
 
 	int width = 1024/2;
 	int height = 768/2;
-	width=height=200;
+	//width=height=300;
 	float blend_amount = 0.5f;
 	if (debug) {
 		make_window(width*2, height);
@@ -187,7 +187,8 @@ int main(int argc, char **argv)
 	//set up random seeds buffer
 	unsigned int seed;
 	printf("calculating random seeds \n");
-	for (int i=0; i < MAX_WORKGROUP; ++i) {
+	int seeds_size = MAX_WORKGROUP;
+	for (int i=0; i < seeds_size; ++i) {
 		seed = rand();//seed*mult;
 		CL_CHECK(clEnqueueWriteBuffer(queue, random_seeds_buf, CL_TRUE, i*sizeof(int), sizeof(int), &seed, 0, NULL, NULL));
 	}
@@ -213,24 +214,26 @@ int main(int argc, char **argv)
 	direction_in[0]=0.0f;
 	direction_in[1]=-.042612f;
 	direction_in[2]=-1.0f;
-
+	int seed_offset = 0;
 	do {
 		navigation(origin_in, direction_in);
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin_buf, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir_buf, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
-
+		seed_offset++;
 		clock_t time_after;
 		clock_t time_before;
 		time_before = clock();
 
 		//sets the arguments of path_trace in order
 		CL_CHECK(clSetKernelArg(path_kernel, 0, sizeof(random_seeds_buf), &random_seeds_buf));
-		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(output_buf), &output_buf));
-		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(width), &width));
-		CL_CHECK(clSetKernelArg(path_kernel, 3, sizeof(height), &height));
+		CL_CHECK(clSetKernelArg(path_kernel, 1, sizeof(seed_offset), &seed_offset));
+		CL_CHECK(clSetKernelArg(path_kernel, 2, sizeof(seeds_size), &seeds_size));
+		CL_CHECK(clSetKernelArg(path_kernel, 3, sizeof(output_buf), &output_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 4, sizeof(width), &width));
+		CL_CHECK(clSetKernelArg(path_kernel, 5, sizeof(height), &height));
 
-		CL_CHECK(clSetKernelArg(path_kernel, 5, sizeof(input_origin_buf), &input_origin_buf));
-		CL_CHECK(clSetKernelArg(path_kernel, 6, sizeof(input_dir_buf), &input_dir_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 7, sizeof(input_origin_buf), &input_origin_buf));
+		CL_CHECK(clSetKernelArg(path_kernel, 8, sizeof(input_dir_buf), &input_dir_buf));
 
 		int batches = (width*height)/MAX_WORKGROUP+1;
 		for(int i=0; i < batches; ++i) {
@@ -241,7 +244,7 @@ int main(int argc, char **argv)
 
 			size_t global_work_size[1] = { workgroup_amount };
 			int offset = i*MAX_WORKGROUP;
-			CL_CHECK(clSetKernelArg(path_kernel, 4, sizeof(offset), &offset));
+			CL_CHECK(clSetKernelArg(path_kernel, 6, sizeof(offset), &offset));
 			printf("running %d / %d \n", i, batches);
 		 	CL_CHECK(clEnqueueNDRangeKernel(queue, path_kernel, work_group_size, NULL, global_work_size, NULL, 0, NULL, &kernel_completion));
 			//kernel either runs when you call clWaitForEvents (below) or it runs when you call

@@ -7,6 +7,8 @@
 
 //defines the Ray structure. Rays have an origin and a direction.
 //They are really just vectors with an associated position
+#pragma OPENCL EXTENSION cl_khr_fp64: enable
+
 typedef struct
 {
   float3 origin;
@@ -75,10 +77,11 @@ inline float2 tent_distribution(unsigned int *seed)
 inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 {
   float3 op = sphere->position - ray->origin; // Solve t^2*d.d + 2*t*(o-p).d + (o-p).(o-p)-R^2 = 0
-  float eps = 1e-4;
+  float eps = 1e-2;
   float b = dot(ray->direction, op);
 
-  float det = b * b - dot(op, op) + sphere->radius * sphere->radius;
+  //float det = b * b - dot(op, op) + sphere->radius * sphere->radius;
+  double det = (double)b * b - (double)dot(op, op) + (double) sphere->radius * sphere->radius;
   if (det > 0) {
     det = sqrt(det);
     float t = b-det;
@@ -93,16 +96,18 @@ inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
   return 0;
 }
 
-inline bool intersect(Ray *ray, float *t, int *id)
+inline bool intersect(Ray *ray, float *t, int *id, int oldID)
 {
   int n=9;//sizeof(spheres);
   float inf = 1e20;
   *t = inf;
   for(int i=0; n > i; ++i) {
-    float d = sphere_intersect_ray(&(spheres[i]), ray);
-    if ( d != 0 && d < (*t)) {
-      (*t) = d;
-      (*id) = i;
+    if (i != oldID) {
+      float d = sphere_intersect_ray(&(spheres[i]), ray);
+      if ( d != 0 && d < (*t)) {
+        (*t) = d;
+        (*id) = i;
+      }
     }
   }
   return (*t) < inf;
@@ -114,10 +119,19 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
   int id;
   float3 accumulated_color = {0,0,0};
   float3 accumulated_reflectance = {1,1,1};
+
+  int oldID = -1;
   while(1) {
-    if (!intersect(ray, &t, &id)) {
+    if (!intersect(ray, &t, &id, oldID)) {
       return accumulated_color;
     }
+    if (oldID == id) {
+      float3 huge = {0.0f, 100.0f, 0.0f};
+      return huge;
+    }
+
+    oldID = id;
+
     __constant Sphere * obj = &(spheres[id]);
     float3 hit_pos = ray->origin + ray->direction*t;
     float3 normal = normalize(hit_pos-obj->position);
@@ -177,12 +191,14 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
 
 //inputs are the five kernel arguments (the first 3 are output buffer pointers)
 __kernel void path_trace(__global int *seeds,
+                        int seeds_size,
+                         int seed_offset,
                         __global float *out,
                         int width,
                         int height,
                         int offset,
-			__global float *origin_in,
-			__global float *direction_in
+			                  __global float *origin_in,
+			                  __global float *direction_in
                         )
 {
 
@@ -201,14 +217,15 @@ __kernel void path_trace(__global int *seeds,
   int x = (array_index+offset)%width;
   int y = (array_index+offset)/width;
   //int array_index = (height-y-1)*width+x;//x+width*y;
-  unsigned int seed = seeds[array_index];
+  unsigned int seed = seeds[(array_index+seed_offset)%seeds_size];
 
   //projects rays through the lens
   float3 cx = {width * .5135f / height, 0, 0};
  // float3 crss = {cx.x*cam.direction.z-cx.z*cam.direction.y,cx.z*cam.direction.x-cx.x*cam.direction.z,cx.x*cam.direction.y-cx.y*cam.direction.x};
   float3 cy = normalize(cross(cx, cam.direction)) * .5135f;
   //number of samples being run for the pixel
-  int samps = 5;
+  //int samps = 5;
+  int samps = 20;
   float3 final_radiance = 0;
 
   //pixel is a position in the pixel array

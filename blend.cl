@@ -29,6 +29,7 @@ __kernel void blend (__global float *out,
 	out[array_index*3+1] = prev[array_index*3+1] * (1-blend) + cur[array_index*3+1] * (blend);
 	out[array_index*3+2] = prev[array_index*3+2] * (1-blend) + cur[array_index*3+2] * (blend);
 };
+
 inline void median(__global float *out,
                   __global float *prev,
                   __global float *cur,
