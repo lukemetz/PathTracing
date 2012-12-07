@@ -46,7 +46,6 @@ inline float random(unsigned int *seed)
 //pseudo random number generator (returns a 2d vector living inside unit square)
 inline float2 tent_distribution(unsigned int *seed)
 {
-
   //collect first random value
   float r = 2 * random(seed);
 
@@ -178,9 +177,7 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
 
 //inputs are the five kernel arguments (the first 3 are output buffer pointers)
 __kernel void path_trace(__global int *seeds,
-                        __global float *out_r,
-                        __global float *out_g,
-                        __global float *out_b,
+                        __global float *out,
                         int width,
                         int height,
                         int offset,
@@ -250,7 +247,7 @@ __kernel void path_trace(__global int *seeds,
     }
 
     //places result in the correct place within the output buffer
-  out_r[array_index] = final_radiance.x;
-  out_g[array_index] = final_radiance.y;
-  out_b[array_index] = final_radiance.z;
+  out[array_index*3] = final_radiance.x;
+  out[array_index*3+1] = final_radiance.y;
+  out[array_index*3+2] = final_radiance.z;
 }
