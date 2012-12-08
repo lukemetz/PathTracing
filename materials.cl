@@ -31,5 +31,55 @@ inline void diffuse(Ray *ray, float3 normal, float3 hit_pos, unsigned int *seed)
 inline void reflect(Ray *ray, float3 normal, float3 hit_pos, unsigned int *seed)
 {
   ray->origin = hit_pos;
-  ray->direction = ray->direction-normal*2*dot(normal, ray->direction);
+  ray->direction = ray->direction-normal*2*dot(normal, ray->direction); //Ideal reflection
+}
+
+inline void refract(Ray *ray, float3 normal, float3 hit_pos, float3 *accumulated_reflectance, unsigned int *seed)
+{
+    float3 normal_l;
+    if (dot(normal, ray->direction) < 0) {
+      normal_l = normal;
+    } else {
+      normal_l = -1*normal;
+    }
+
+    float3 new_dir = ray->direction-normal*2*dot(normal, ray->direction);// Ideal dielectric refraction
+
+    bool into = dot(normal, normal_l)>0;// Ray from outside going in?
+    float nc=1, nt=1.5;
+    float nnt;
+    if (into) {
+      nnt = nc/nt;
+    } else {
+      nnt = nt/nc;
+    }
+    float ddn = dot(ray->direction, normal_l);
+    float cos2t = 1 - nnt * nnt * (1 - ddn * ddn);
+
+    if (cos2t < 0){    // Total internal reflection
+      ray->direction = new_dir;
+      ray->origin = hit_pos;
+      return;
+    }
+
+    float3 tdir = normalize((ray->direction*nnt - normal * ((into?1:-1) * (ddn * nnt+sqrt(cos2t)))));
+    float a=nt-nc;
+    float b=nt+nc;
+    float R0=a*a/(b*b);
+    float c = 1-(into?-ddn:dot(tdir, normal));
+    float Re=R0+(1-R0)*c*c*c*c*c;
+    float Tr=1-Re;
+    float P=.25+.5*Re;
+    float RP=Re/P;
+    float TP=Tr/(1-P);
+
+    if (random(seed)<P){
+      *accumulated_reflectance = (*accumulated_reflectance)*RP;
+      ray->direction = new_dir;
+      ray->origin = hit_pos;
+    } else {
+      *accumulated_reflectance = (*accumulated_reflectance)*TP;
+      ray->direction = tdir;
+      ray->origin = hit_pos;
+    }
 }

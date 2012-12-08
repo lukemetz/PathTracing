@@ -19,7 +19,7 @@ __constant Sphere spheres[] = {//Scene: radius, position, emission, color, mater
   {1e3,   {50, 1e3, 81.6},    {0,0,0},    {.75,.75,.75}, 0},//Botm
   {1,   {50,-1e3+81.6,81.6},{0,0,0},    {.75,.75,.75}, 0},//Top
   {16.5,  {27,16.5,47},       {0,0,0},    {0.9f, 0.9f, 0.9f}, 1},
-  {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}, 1},
+  {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}, 2},
   {600,   {50,681.6-.27,81.6},{1.5,1.5,1.5}, {0,0,0}, 0} //Lite
 };
 
@@ -94,13 +94,13 @@ inline bool intersect(Ray *ray, float *t, int *id, int oldID)
   float inf = 1e20;
   *t = inf;
   for(int i=0; n > i; ++i) {
-    if (i != oldID) { //CHECK HERE if object CAN self intersect, transparent obj for example.
+   // if (i != oldID || spheres[i].material == 2) { //CHECK HERE if object CAN self intersect, transparent obj for example.
       float d = sphere_intersect_ray(&(spheres[i]), ray);
       if ( d != 0 && d < (*t)) {
         (*t) = d;
         (*id) = i;
       }
-    }
+    //}
   }
   return (*t) < inf;
 }
@@ -137,7 +137,7 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
     }
 
     accumulated_color += accumulated_reflectance*obj->emission;
-    if (++depth > 3) {
+    if (++depth > 5) {
       if (random(seed) < p) {
         f = f*(1/p);
       } else {
@@ -150,6 +150,8 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
       diffuse(ray, normal, hit_pos, seed);
     } else if (obj->material == 1) {
       reflect(ray, normal, hit_pos, seed);
+    } else if (obj->material == 2) {
+      refract(ray, normal, hit_pos, &accumulated_reflectance, seed);
     }
   }
 
