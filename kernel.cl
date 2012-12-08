@@ -8,32 +8,19 @@
 //defines the Ray structure. Rays have an origin and a direction.
 //They are really just vectors with an associated position
 #pragma OPENCL EXTENSION cl_khr_fp64: enable
-
-typedef struct
-{
-  float3 origin;
-  float3 direction;
-} Ray;
-
-typedef struct
-{
-  float radius;
-  float3 position;
-  float3 emission;
-  float3 color;
-} Sphere;
+#include "types.h"
 
 //hard code in the scene for now
 __constant Sphere spheres[] = {//Scene: radius, position, emission, color, material
-  {1e3,   { 1e3+1,40.8,81.6}, {0.1,0,0},    {.75,.25,.25}},//Left
-  {1e3,   {-1e3+99,40.8,81.6},{0,0.1,0},    {.25,.25,.75}},//Rght
-  {1e3,   {50,40.8, 1e3},     {0,0,0},    {.75,.75,.75}},//Back
-  {1e3,   {50,40.8,-1e3+170}, {0,0,0},    {0,0,0}},//Frnt
-  {1e3,   {50, 1e3, 81.6},    {0,0,0},    {.75,.75,.75}},//Botm
-  {1,   {50,-1e3+81.6,81.6},{0,0,0},    {.75,.75,.75}},//Top
-  {16.5,  {27,16.5,47},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
-  {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}},
-  {600,   {50,681.6-.27,81.6},{1.5,1.5,1.5}, {0,0,0}} //Lite
+  {1e3,   { 1e3+1,40.8,81.6}, {0.1,0,0},    {.75,.25,.25}, 0},//Left
+  {1e3,   {-1e3+99,40.8,81.6},{0,0.1,0},    {.25,.25,.75}, 0},//Rght
+  {1e3,   {50,40.8, 1e3},     {0,0,0},    {.75,.75,.75}, 0},//Back
+  {1e3,   {50,40.8,-1e3+170}, {0,0,0},    {0,0,0}, 0},//Frnt
+  {1e3,   {50, 1e3, 81.6},    {0,0,0},    {.75,.75,.75}, 0},//Botm
+  {1,   {50,-1e3+81.6,81.6},{0,0,0},    {.75,.75,.75}, 0},//Top
+  {16.5,  {27,16.5,47},       {0,0,0},    {0.9f, 0.9f, 0.9f}, 1},
+  {16.5,  {73,16.5,78},       {0,0,0},    {0.9f, 0.9f, 0.9f}, 1},
+  {600,   {50,681.6-.27,81.6},{1.5,1.5,1.5}, {0,0,0}, 0} //Lite
 };
 
 
@@ -118,6 +105,9 @@ inline bool intersect(Ray *ray, float *t, int *id, int oldID)
   return (*t) < inf;
 }
 
+
+#include "materials.cl"
+
 float3 radiance(unsigned int * seed, Ray * ray, int depth)
 {
   float t;
@@ -130,22 +120,11 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
     if (!intersect(ray, &t, &id, oldID)) {
       return accumulated_color;
     }
-    if (oldID == id) {
-      float3 huge = {0.0f, 100.0f, 0.0f};
-      return huge;
-    }
-
     oldID = id;
 
     __constant Sphere * obj = &(spheres[id]);
     float3 hit_pos = ray->origin + ray->direction*t;
     float3 normal = normalize(hit_pos-obj->position);
-    float3 normal_l;
-    if (dot(normal, ray->direction) < 0) {
-      normal_l = normal;
-    } else {
-      normal_l = -1*normal;
-    }
     float3 f = obj->color;
 
     float p;//max refl
@@ -167,27 +146,10 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
     }
     accumulated_reflectance = accumulated_reflectance*f;
 
-    //Just diffusion for now
-    {
-      float r1 = 2*M_PI*random(seed);
-      float r2 = random(seed);
-      float r2_sqrt = sqrt(r2);
-
-      //Create orthonormal basis uvw
-      float3 w=normal_l;
-      float3 u = {0,0,0};
-      if (fabs(w.x) > .1) {
-        u.y = 1;
-      } else {
-        u.x = 1;
-      }
-      u = normalize(cross(u, w));
-      float3 v = cross(w,u);
-
-      float3 d = normalize(u*cos(r1)*r2_sqrt + v*sin(r1)*r2_sqrt + w*sqrt(1-r2));
-      ray->origin = hit_pos;
-      ray->direction = d;
-      continue;
+    if (obj->material == 0) {
+      diffuse(ray, normal, hit_pos, seed);
+    } else if (obj->material == 1) {
+      reflect(ray, normal, hit_pos, seed);
     }
   }
 
