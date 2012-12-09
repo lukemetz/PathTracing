@@ -109,7 +109,7 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 
 	*program = CL_CHECK_ERR(clCreateProgramWithSource(*context, 1, (const char **)&program_source, NULL, &_err));
 	printf("Compiling %s \n", file);
-	if (clBuildProgram(*program, 1, devices, "-cl-mad-enable -cl-fast-relaxed-math -cl-unsafe-math-optimizations -Werror", NULL, NULL) != CL_SUCCESS) {
+	if (clBuildProgram(*program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
 		char buffer[10240];
 		clGetProgramBuildInfo(*program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
 		fprintf(stderr, "CL Compilation failed:\n%s", buffer);
@@ -121,6 +121,12 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 
 int main(int argc, char **argv)
 {
+	int MAX_WORKGROUP= 10000;
+	if(argc>1)
+	{
+		MAX_WORKGROUP= atoi(argv[1]);
+	}
+	
 	bool debug = true;
 	cl_platform_id platforms[100];
 	cl_uint platforms_n = 0;
@@ -157,7 +163,7 @@ int main(int argc, char **argv)
 
 	int width = 1024/2;
 	int height = 768/2;
-	//width=height=300;
+	width=height=300;
 	float blend_amount = 0.5f;
 	if (debug) {
 		make_window(width*2, height);
@@ -170,7 +176,7 @@ int main(int argc, char **argv)
 
 	//int *pixels = (int *)malloc(sizeof(int)*width*height);
 
-	#define MAX_WORKGROUP 10000
+	
 	//Buffers for path_tracing
 	cl_mem output_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_WRITE_ONLY, sizeof(float)*MAX_WORKGROUP*3, NULL, &_err));
 	cl_mem random_seeds_buf = CL_CHECK_ERR(clCreateBuffer(context, CL_MEM_READ_ONLY, sizeof(int)*MAX_WORKGROUP, NULL, &_err));
@@ -215,14 +221,33 @@ int main(int argc, char **argv)
 	direction_in[1]=-.042612f;
 	direction_in[2]=-1.0f;
 	int seed_offset = 0;
+
+
+	///////////////////////////////////////////////////////////////////////////
+	bool benchmark_mode=true;
+	int loop_counter=0;
+	int num_loops=10;
+	float weight=1/((float) num_loops);
+
+	float avg_time_diff = 0;
+	float avg_samps_per_second = 0;
+	float avg_time_diff_bounce = 0;
+	float avg_time_diff_blend = 0;
+	////////////////////////////////////////////////////////////////////////////
+
 	do {
 		navigation(origin_in, direction_in);
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_origin_buf, CL_TRUE, 0, 3*sizeof(float), origin_in, 0, NULL, NULL));
 		CL_CHECK(clEnqueueWriteBuffer(queue, input_dir_buf, CL_TRUE, 0, 3*sizeof(float), direction_in, 0, NULL, NULL));
 		seed_offset += 300;
+		
+		/////////////////////////////////////////////////////////////////////////////////////////////////
 		clock_t time_after;
+		clock_t time_middle;
 		clock_t time_before;
 		time_before = clock();
+		/////////////////////////////////////////////////////////////////////////////////////////////////
+
 
 		//sets the arguments of path_trace in order
 		CL_CHECK(clSetKernelArg(path_kernel, 0, sizeof(random_seeds_buf), &random_seeds_buf));
@@ -252,10 +277,11 @@ int main(int argc, char **argv)
 
 			CL_CHECK(clEnqueueReadBuffer(queue, output_buf, CL_TRUE, 0, sizeof(float)*workgroup_amount*3, out+i*MAX_WORKGROUP*3, 0, NULL, NULL));
 	}
+		///////////////////////////////////////////////////////////////////////////////////////////////
 		//Done with path tracing
-		time_after = clock();
-		printf("finished path tracing with %lf \n", ((double)(time_after-time_before))/CLOCKS_PER_SEC);
-		time_before = clock();
+		time_middle = clock();
+		printf("finished path tracing with %lf \n", ((double)(time_middle-time_before))/CLOCKS_PER_SEC);
+		///////////////////////////////////////////////////////////////////////////////////////////////
 
 		glClear(GL_COLOR_BUFFER_BIT);
 		//move to center self in screen
@@ -264,9 +290,9 @@ int main(int argc, char **argv)
 			//fill_pixels(pixels, width, height, out_r, out_g, out_b);
 			glDrawPixels(width, height, GL_RGB,  GL_FLOAT, out);
 		}
-
+		
 		printf("gl_overhead %lf\n",((double)clock()-time_before)/CLOCKS_PER_SEC);
-		time_before = clock();
+		
 
 		//Set up blend input buffers
 		CL_CHECK(clEnqueueWriteBuffer(queue, prev_buf, CL_TRUE, 0, 3*total_size*sizeof(float), prev, 0, NULL, NULL));
@@ -298,9 +324,17 @@ int main(int argc, char **argv)
 		//fill_pixels(pixels, width, height, out_r, out_g, out_b);
 		glDrawPixels(width, height, GL_RGB,  GL_FLOAT, out);
 
+		/////////////////////////////////////////////////////////////////////////
+		time_after = clock();
 		float time_diff = ((float)(time_after-time_before))/CLOCKS_PER_SEC;
+		float time_diff_bounce = ((float)(time_middle-time_before))/CLOCKS_PER_SEC;
+		float time_diff_blend = ((float)(time_after-time_middle))/CLOCKS_PER_SEC;
 		float samps_per_second = (50.0f*4*width*height)/time_diff;
 		printf("Done in %f seconds at a rate of %fK samples per second \n",time_diff, samps_per_second/1000);
+		/////////////////////////////////////////////////////////////////////////
+
+
+
 		//save_to_file(width, height, out_r, out_g, out_b);
 
 		//Save current image to previous
@@ -309,8 +343,17 @@ int main(int argc, char **argv)
 		}
 
 		glfwSwapBuffers();
+
+		///////////////////////////////////////////////////////////////////////////
+		loop_counter++;
+		avg_time_diff=avg_time_diff+weight*time_diff;
+		avg_samps_per_second=avg_samps_per_second+weight*samps_per_second;
+		avg_time_diff_bounce=avg_time_diff_bounce+weight*time_diff_bounce;
+		avg_time_diff_blend=avg_time_diff_blend+weight*time_diff_blend;
+		////////////////////////////////////////////////////////////////////////////
+
 	} // Check if the ESC key was pressed or the window was closed
-	while( glfwGetKey( GLFW_KEY_ESC ) != GLFW_PRESS && glfwGetWindowParam( GLFW_OPENED ) );
+	while(( glfwGetKey( GLFW_KEY_ESC ) != GLFW_PRESS && glfwGetWindowParam( GLFW_OPENED ) )&&(!benchmark_mode||loop_counter<=num_loops));
 
 	CL_CHECK(clReleaseEvent(kernel_completion));
 
@@ -326,6 +369,32 @@ int main(int argc, char **argv)
 	CL_CHECK(clReleaseProgram(blend_program));
 
 	CL_CHECK(clReleaseContext(context));
+
+	printf("width=\t %i \n",width);
+	printf("height=\t %i \n",height);
+	printf("worksize=\t %i \n",MAX_WORKGROUP);
+	printf("avg_time_diff=\t %f \n",avg_time_diff);
+	printf("FPS=\t %f \n",1/avg_time_diff);
+	printf("avg_time_diff_bounce=\t %f \n",avg_time_diff_bounce);
+	printf("avg_time_diff_blend=\t %f \n",avg_time_diff_blend);
+	printf("avg_samps_per_second=\t %f \n",avg_samps_per_second);
+
+	FILE *my_file;
+	if(argc>2)
+	{
+		//open the file at the path that was given
+		my_file=fopen(argv[2],"a");
+		fprintf(my_file,"width=\t %i \n",width);
+		fprintf(my_file,"height=\t %i \n",height);
+		fprintf(my_file,"worksize=\t %i \n",MAX_WORKGROUP);
+		fprintf(my_file,"avg_time_diff=\t %f \n",avg_time_diff);
+		fprintf(my_file,"FPS=\t %f \n",1/avg_time_diff);
+		fprintf(my_file,"avg_time_diff_bounce=\t %f \n",avg_time_diff_bounce);
+		fprintf(my_file,"avg_time_diff_blend=\t %f \n",avg_time_diff_blend);
+		fprintf(my_file,"avg_samps_per_second=\t %f \n\n\n",avg_samps_per_second);
+		fclose(my_file);
+		
+	}
 	return 0;
 
 }
