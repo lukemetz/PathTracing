@@ -7,7 +7,6 @@
 
 //defines the Ray structure. Rays have an origin and a direction.
 //They are really just vectors with an associated position
-#pragma OPENCL EXTENSION cl_khr_fp64: enable
 #include "types.h"
 
 //hard code in the scene for now
@@ -193,8 +192,8 @@ __kernel void path_trace(__global int *seeds,
  // float3 crss = {cx.x*cam.direction.z-cx.z*cam.direction.y,cx.z*cam.direction.x-cx.x*cam.direction.z,cx.x*cam.direction.y-cx.y*cam.direction.x};
   float3 cy = normalize(cross(cx, cam.direction)) * .5135f;
   //number of samples being run for the pixel
-  int samps = 5;
-  //int samps = 20;
+  //int samps = 50;
+  int samps = 10;
   float3 final_radiance = 0;
 
   //pixel is a position in the pixel array

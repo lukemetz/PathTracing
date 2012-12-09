@@ -1,4 +1,5 @@
 #include "general_utils.h"
+#include <time.h>
 
 float clamp(float x)
 {
@@ -12,13 +13,23 @@ int to_int(float val)
 
 char *get_text_from_file(char *filename)
 {
+	//Hack to get kernel to fully recompile
+	int hack_size = 5;
 	FILE *f = fopen(filename, "rb");
 	fseek(f, 0, SEEK_END);
 	long pos = ftell(f);
 	fseek(f, 0, SEEK_SET);
-	char *program_source = calloc(pos, sizeof(char));
+	char *program_source = calloc(pos+hack_size, sizeof(char));
 	fread(program_source, pos-1, 1, f);
 	fclose(f);
+	//Add random chars to force kernel to recompile fully with includes
+	program_source[pos-1] = '/';
+	program_source[pos] = '/';
+	srand ( time(NULL) );
+	program_source[pos+1] = rand()%255;
+	program_source[pos+2] = rand()%255;
+	program_source[pos+3] = rand()%255;
+	program_source[pos+4] = '\0';
 	return program_source;
 }
 

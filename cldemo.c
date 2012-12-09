@@ -109,7 +109,7 @@ void make_clprogram(cl_program *program, char *file, cl_context *context, cl_dev
 
 	*program = CL_CHECK_ERR(clCreateProgramWithSource(*context, 1, (const char **)&program_source, NULL, &_err));
 	printf("Compiling %s \n", file);
-	if (clBuildProgram(*program, 1, devices, "", NULL, NULL) != CL_SUCCESS) {
+	if (clBuildProgram(*program, 1, devices, "-cl-mad-enable -cl-fast-relaxed-math -cl-unsafe-math-optimizations -Werror", NULL, NULL) != CL_SUCCESS) {
 		char buffer[10240];
 		clGetProgramBuildInfo(*program, devices[0], CL_PROGRAM_BUILD_LOG, sizeof(buffer), buffer, NULL);
 		fprintf(stderr, "CL Compilation failed:\n%s", buffer);
