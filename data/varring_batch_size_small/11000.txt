@@ -1,0 +1,10 @@
+width=	 300 
+height=	 300 
+worksize=	 11000 
+avg_time_diff=	 1.363000 
+FPS=	 0.733676 
+avg_time_diff_bounce=	 1.340000 
+avg_time_diff_blend=	 0.023000 
+avg_samps_per_second=	 15979922.000000 
+
+
