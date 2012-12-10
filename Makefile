@@ -6,3 +6,6 @@ orion_demo: cldemo.c draw_utils.c draw_utils.h general_utils.h general_utils.c
 
 runcldemo: runcldemo.c
 	gcc -o runcldemo runcldemo.c
+
+runcldemo_2: runcldemo_2.c
+	gcc -o runcldemo_2 runcldemo_2.c

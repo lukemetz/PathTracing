@@ -9,6 +9,10 @@
 //They are really just vectors with an associated position
 #include "types.h"
 
+//allows for some variability in kernel file
+#include "parameters.h"
+
+
 //hard code in the scene for now
 __constant Sphere spheres[] = {//Scene: radius, position, emission, color, material
   {1e3,   { 1e3+1,40.8,81.6}, {0.1,0,0},    {.75,.25,.25}, 0},//Left
@@ -89,7 +93,8 @@ inline float sphere_intersect_ray(__constant Sphere *sphere, Ray *ray)
 
 inline bool intersect(Ray *ray, float *t, int *id, int oldID)
 {
-  int n=9;//sizeof(spheres);
+  int n=num_spheres;//sizeof(spheres);
+
   float inf = 1e20;
   *t = inf;
   for(int i=0; n > i; ++i) {
@@ -136,7 +141,7 @@ float3 radiance(unsigned int * seed, Ray * ray, int depth)
     }
 
     accumulated_color += accumulated_reflectance*obj->emission;
-    if (++depth > 5) {
+    if (++depth > MAX_DEPTH) {
       if (random(seed) < p) {
         f = f*(1/p);
       } else {
